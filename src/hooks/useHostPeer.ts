@@ -7,7 +7,8 @@ import {
   type HostFeedbackEvent,
   generateRoomId,
   toHostPeerId,
-  fromHostPeerId
+  fromHostPeerId,
+  RTC_CONFIG
 } from '../types/network'
 
 export interface HostPeerState {
@@ -131,12 +132,7 @@ export function useHostPeer(initialRoomId?: string): UseHostPeerReturn {
       const peer = new Peer(hostPeerId, {
         debug: 1,
         pingInterval: 5000, // Keep-alive heartbeat every 5s
-        config: {
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:global.stun.twilio.com:3478' }
-          ]
-        }
+        config: RTC_CONFIG
       })
 
       peerRef.current = peer

@@ -5,7 +5,8 @@ import {
   type PlayerSlot,
   type ControllerInputPayload,
   type HostFeedbackEvent,
-  toHostPeerId
+  toHostPeerId,
+  RTC_CONFIG
 } from '../types/network'
 
 export interface ControllerStateInput {
@@ -109,16 +110,11 @@ export function useControllerPeer(targetRoomId?: string): UseControllerPeerRetur
       peerRef.current = null
     }
 
-    // Ephemeral client peer ID with keep-alive
+    // Ephemeral client peer ID with keep-alive and TURN relay
     const peer = new Peer({
       debug: 1,
       pingInterval: 5000,
-      config: {
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:global.stun.twilio.com:3478' }
-        ]
-      }
+      config: RTC_CONFIG
     })
 
     peerRef.current = peer
@@ -128,11 +124,8 @@ export function useControllerPeer(targetRoomId?: string): UseControllerPeerRetur
       console.log(`[ControllerPeer] Client peer ready (${clientId}). Connecting to ${normalizedRoomId}...`)
       const hostPeerId = toHostPeerId(normalizedRoomId)
 
-      // Connect with low latency (reliable: false for UDP-equivalent behavior)
-      const conn = peer.connect(hostPeerId, {
-        reliable: false,
-        serialization: 'json'
-      })
+      // Connect to host with standard PeerJS DataChannel
+      const conn = peer.connect(hostPeerId)
 
       connRef.current = conn
 
@@ -185,6 +178,12 @@ export function useControllerPeer(targetRoomId?: string): UseControllerPeerRetur
       if (isCleaningUpRef.current) return
       const errType = err.type || ''
       const errMsg = err.message || ''
+
+      if (errType === 'peer-unavailable') {
+        setErrorMessage(`Host room "${normalizedRoomId}" not active. Verify host screen.`)
+        setConnectionState('DISCONNECTED')
+        return
+      }
 
       // Handle transient errors gracefully
       if (errType === 'network' || errMsg.includes('Lost connection')) {

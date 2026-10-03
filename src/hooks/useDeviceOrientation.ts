@@ -39,13 +39,21 @@ export function useDeviceOrientation(): UseDeviceOrientationReturn {
       return
     }
 
+    // Only activate device orientation listener on actual mobile/tablet devices
+    const isMobileDevice = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    if (!isMobileDevice) {
+      setPermissionState('unsupported')
+      setIsAvailable(false)
+      return
+    }
+
     const OrientationEvent = window.DeviceOrientationEvent as unknown as DeviceOrientationEventIOS
 
     // iOS 13+ requires explicit user gesture to requestPermission
     if (typeof OrientationEvent.requestPermission === 'function') {
       setPermissionState('prompt')
     } else {
-      // Standard Android / desktop browser (auto-allowed)
+      // Standard Android mobile browser
       setPermissionState('granted')
     }
   }, [])

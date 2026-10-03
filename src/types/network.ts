@@ -56,6 +56,16 @@ export interface PlayerConnection {
 export const PEER_PREFIX = 'astrotether-v1-'
 
 /**
+ * Production-ready WebRTC ICE configuration using Google Public STUN
+ */
+export const RTC_CONFIG: RTCConfiguration = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' }
+  ]
+}
+
+/**
  * Generates a clean, unambiguous 4-character room ID (uppercase)
  */
 export function generateRoomId(): string {

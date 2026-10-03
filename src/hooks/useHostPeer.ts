@@ -362,6 +362,11 @@ export function useHostPeer(initialRoomId?: string): UseHostPeerReturn {
                   ? Math.max(0.0, Math.min(1.0, rawThrust))
                   : 0
 
+                const rawAngle =
+                  typeof data.ang === 'number' && Number.isFinite(data.ang)
+                    ? Math.max(-Math.PI * 2, Math.min(Math.PI * 2, data.ang))
+                    : undefined
+
                 const sanitizedPayload: ControllerInputPayload = {
                   p: verifiedSlot,
                   st: clampedSteer,
@@ -369,7 +374,8 @@ export function useHostPeer(initialRoomId?: string): UseHostPeerReturn {
                   re: Boolean(data.re),
                   bo: Boolean(data.bo),
                   t: typeof data.t === 'number' ? data.t : Date.now(),
-                  sh: data.sh
+                  sh: data.sh,
+                  ang: rawAngle
                 }
 
                 latestInputsRef.current[verifiedSlot] = sanitizedPayload

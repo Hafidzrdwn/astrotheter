@@ -21,6 +21,7 @@ export interface ControllerInputPayload {
   re: boolean // Reel / Pull tether active
   bo: boolean // Sync boost trigger
   sh?: ShipShape // Selected spacecraft customization shape
+  ang?: number // Direct steering heading angle in radians (-PI to +PI)
 }
 
 /**

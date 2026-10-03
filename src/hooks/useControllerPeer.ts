@@ -16,6 +16,7 @@ export interface ControllerStateInput {
   reel: boolean
   boost: boolean
   shape?: ShipShape
+  headingAngle?: number
 }
 
 export interface UseControllerPeerReturn {
@@ -250,6 +251,7 @@ export function useControllerPeer(targetRoomId?: string, preferredSlot?: PlayerS
       // Dirty check: has steer or thrust changed beyond epsilon, or have button states toggled?
       const steerChanged = !prev || Math.abs(curr.steer - prev.st) > 0.015
       const thrustChanged = !prev || Math.abs(curr.thrust - prev.th) > 0.02
+      const angleChanged = !prev || curr.headingAngle !== prev.ang
       const reelChanged = !prev || curr.reel !== prev.re
       const boostChanged = !prev || curr.boost !== prev.bo
       const shapeChanged = !prev || curr.shape !== prev.sh
@@ -257,7 +259,7 @@ export function useControllerPeer(targetRoomId?: string, preferredSlot?: PlayerS
       // Heartbeat: force emit every 800ms even if idle so host knows client is alive
       const heartbeatDue = now - lastEmittedTimeRef.current > 800
 
-      if (steerChanged || thrustChanged || reelChanged || boostChanged || shapeChanged || heartbeatDue) {
+      if (steerChanged || thrustChanged || angleChanged || reelChanged || boostChanged || shapeChanged || heartbeatDue) {
         const payload: ControllerInputPayload = {
           t: now,
           p: (playerSlot || 1),
@@ -265,7 +267,8 @@ export function useControllerPeer(targetRoomId?: string, preferredSlot?: PlayerS
           th: Number(curr.thrust.toFixed(3)),
           re: curr.reel,
           bo: curr.boost,
-          sh: curr.shape
+          sh: curr.shape,
+          ang: curr.headingAngle !== undefined ? Number(curr.headingAngle.toFixed(4)) : undefined
         }
 
         try {

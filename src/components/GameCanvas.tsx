@@ -375,9 +375,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
       // 3. Apply Forces to Ship 1
       const THRUST_MAG = 0.0025 * (p1Boost ? 1.8 : 1.0)
-      const ROTATION_SPEED = 0.065
+      const ROTATION_SPEED = 0.12
 
-      Body.setAngularVelocity(ship1, p1Steer * ROTATION_SPEED)
+      // Progressive analog steering: fine control near deadzone, sharp and nimble at full lock
+      const p1TurnRate =
+        Math.sign(p1Steer) * Math.pow(Math.abs(p1Steer), 1.2) * ROTATION_SPEED
+      Body.setAngularVelocity(ship1, p1TurnRate)
 
       if (p1Thrust > 0.05) {
         const angle1 = ship1.angle
@@ -406,7 +409,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
       // 4. Apply Forces to Ship 2
       const THRUST_MAG2 = 0.0025 * (p2Boost ? 1.8 : 1.0)
-      Body.setAngularVelocity(ship2, p2Steer * ROTATION_SPEED)
+      const p2TurnRate =
+        Math.sign(p2Steer) * Math.pow(Math.abs(p2Steer), 1.2) * ROTATION_SPEED
+      Body.setAngularVelocity(ship2, p2TurnRate)
 
       if (p2Thrust > 0.05) {
         const angle2 = ship2.angle

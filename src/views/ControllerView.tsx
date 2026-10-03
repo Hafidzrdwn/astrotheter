@@ -62,6 +62,7 @@ export const ControllerView: React.FC = () => {
 
   // Manual fallback touch steer
   const [touchSteer, setTouchSteer] = useState<number>(0)
+  const [wheelAngle, setWheelAngle] = useState<number>(0)
   const [useManualSteer, setUseManualSteer] = useState<boolean>(false)
 
   // Active touch states
@@ -83,6 +84,8 @@ export const ControllerView: React.FC = () => {
   const steerTrackRef = useRef<HTMLDivElement>(null)
   const thrustTrackRectRef = useRef<DOMRect | null>(null)
   const steerTrackRectRef = useRef<DOMRect | null>(null)
+  const lastAngleRadRef = useRef<number | null>(null)
+  const accumulatedWheelAngleRef = useRef<number>(0)
 
   // Cancel any pending RAFs on unmount
   useEffect(() => {
@@ -234,7 +237,7 @@ export const ControllerView: React.FC = () => {
     setThrustPercent(clamped)
   }
 
-  // --- Horizontal Touch Fallback Steer Slider (-1.0 to +1.0, springs back to 0 on release) ---
+  // --- 360-Degree Relative Rotational Steering Wheel Handlers (Zero Initial Snap) ---
   const handleSteerPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     isSteerDraggingRef.current = true
     setIsSteerActive(true)
@@ -244,18 +247,25 @@ export const ControllerView: React.FC = () => {
     if (steerTrackRef.current) {
       steerTrackRectRef.current = steerTrackRef.current.getBoundingClientRect()
     }
+    const rect = steerTrackRectRef.current || steerTrackRef.current?.getBoundingClientRect()
+    if (rect) {
+      const centerX = rect.left + rect.width / 2
+      const centerY = rect.top + rect.height / 2
+      lastAngleRadRef.current = Math.atan2(e.clientX - centerX, -(e.clientY - centerY))
+    }
     triggerTouchHaptic(20)
-    updateSteerFromPointer(e.clientX)
+    // Wheel angle stays at neutral 0 until moved - no initial snap!
   }
 
   const handleSteerPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isSteerDraggingRef.current) return
     const clientX = e.clientX
+    const clientY = e.clientY
     if (steerRafRef.current) {
       cancelAnimationFrame(steerRafRef.current)
     }
     steerRafRef.current = requestAnimationFrame(() => {
-      updateSteerFromPointer(clientX)
+      updateSteerFromPointer(clientX, clientY)
     })
   }
 
@@ -263,22 +273,8 @@ export const ControllerView: React.FC = () => {
     isSteerDraggingRef.current = false
     setIsSteerActive(false)
     steerTrackRectRef.current = null
-    if (steerRafRef.current) {
-      cancelAnimationFrame(steerRafRef.current)
-      steerRafRef.current = null
-    }
-    try {
-      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-        e.currentTarget.releasePointerCapture(e.pointerId)
-      }
-    } catch {}
-    setTouchSteer(0) // Springs back to dead center
-  }
-
-  const handleSteerPointerCancel = (e: React.PointerEvent<HTMLDivElement>) => {
-    isSteerDraggingRef.current = false
-    setIsSteerActive(false)
-    steerTrackRectRef.current = null
+    accumulatedWheelAngleRef.current = 0
+    lastAngleRadRef.current = null
     if (steerRafRef.current) {
       cancelAnimationFrame(steerRafRef.current)
       steerRafRef.current = null
@@ -289,15 +285,80 @@ export const ControllerView: React.FC = () => {
       }
     } catch {}
     setTouchSteer(0)
+    setWheelAngle(0)
   }
 
-  const updateSteerFromPointer = (clientX: number) => {
+  const handleSteerPointerCancel = (e: React.PointerEvent<HTMLDivElement>) => {
+    isSteerDraggingRef.current = false
+    setIsSteerActive(false)
+    steerTrackRectRef.current = null
+    accumulatedWheelAngleRef.current = 0
+    lastAngleRadRef.current = null
+    if (steerRafRef.current) {
+      cancelAnimationFrame(steerRafRef.current)
+      steerRafRef.current = null
+    }
+    try {
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId)
+      }
+    } catch {}
+    setTouchSteer(0)
+    setWheelAngle(0)
+  }
+
+  const updateSteerFromPointer = (clientX: number, clientY: number) => {
     const rect = steerTrackRectRef.current || steerTrackRef.current?.getBoundingClientRect()
     if (!rect) return
     const centerX = rect.left + rect.width / 2
-    const offset = clientX - centerX
-    const maxOffset = rect.width / 2
-    const normalized = Math.max(-1.0, Math.min(1.0, offset / maxOffset))
+    const centerY = rect.top + rect.height / 2
+
+    const dx = clientX - centerX
+    const dy = clientY - centerY
+
+    // Minimum distance from center
+    const dist = Math.hypot(dx, dy)
+    if (dist < 10) return
+
+    const currentAngleRad = Math.atan2(dx, -dy)
+
+    if (lastAngleRadRef.current === null) {
+      lastAngleRadRef.current = currentAngleRad
+      return
+    }
+
+    // Relative displacement between consecutive frames
+    let deltaRad = currentAngleRad - lastAngleRadRef.current
+
+    // Handle wrap-around across -PI / +PI boundary (6 o'clock)
+    if (deltaRad < -Math.PI) deltaRad += Math.PI * 2
+    if (deltaRad > Math.PI) deltaRad -= Math.PI * 2
+
+    lastAngleRadRef.current = currentAngleRad
+
+    // Accumulate rotation smoothly
+    const deltaDeg = (deltaRad * 180) / Math.PI
+    accumulatedWheelAngleRef.current += deltaDeg
+
+    // Max realistic steering wheel rotation lock: +/- 150 degrees
+    const MAX_ROTATION_DEG = 150
+    accumulatedWheelAngleRef.current = Math.max(
+      -MAX_ROTATION_DEG,
+      Math.min(MAX_ROTATION_DEG, accumulatedWheelAngleRef.current)
+    )
+
+    const currentDeg = Math.round(accumulatedWheelAngleRef.current)
+    setWheelAngle(currentDeg)
+
+    // Sensitivity mapping: 120 degrees of rotation reaches full left/right lock (1.0)
+    const MAX_LOCK_DEG = 120
+    const DEADZONE_DEG = 3
+
+    let normalized = 0
+    if (Math.abs(currentDeg) > DEADZONE_DEG) {
+      normalized = Math.max(-1.0, Math.min(1.0, currentDeg / MAX_LOCK_DEG))
+    }
+
     setTouchSteer(Number(normalized.toFixed(2)))
   }
 
@@ -712,13 +773,13 @@ export const ControllerView: React.FC = () => {
           ) : (
             /* Futuristic Cyberpunk Steering Wheel / Flight Yoke */
             <div className="w-full flex flex-col items-center justify-center">
-              <div className="flex items-center justify-between w-full max-w-[150px] mb-1 px-1 text-[9px] font-mono font-bold">
+              <div className="flex items-center justify-between w-full max-w-[160px] mb-1 px-1 text-[9px] font-mono font-bold">
                 <span className="text-gray-400 flex items-center gap-1 font-['Orbitron']">
                   <Compass size={11} className="text-[#00F0FF]" />
                   STEER
                 </span>
                 <span style={{ color: themeColor }}>
-                  {touchSteer !== 0 ? `${touchSteer > 0 ? '+' : ''}${Math.round(touchSteer * 60)}°` : '0°'}
+                  {wheelAngle !== 0 ? `${wheelAngle > 0 ? '+' : ''}${wheelAngle}°` : 'CENTER'}
                 </span>
               </div>
 
@@ -729,7 +790,7 @@ export const ControllerView: React.FC = () => {
                 onPointerMove={handleSteerPointerMove}
                 onPointerUp={handleSteerPointerUp}
                 onPointerCancel={handleSteerPointerCancel}
-                className="relative w-36 h-36 landscape:w-28 landscape:h-28 rounded-full border-2 border-white/15 bg-black/70 flex items-center justify-center cursor-pointer shadow-2xl active:border-[#00F0FF]/50 touch-none select-none backdrop-blur-md"
+                className="relative w-40 h-40 landscape:w-32 landscape:h-32 rounded-full border-2 border-white/15 bg-black/70 flex items-center justify-center cursor-pointer shadow-2xl active:border-[#00F0FF]/50 touch-none select-none backdrop-blur-md"
               >
                 {/* Center crosshair guides */}
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-15">
@@ -739,11 +800,11 @@ export const ControllerView: React.FC = () => {
 
                 {/* Rotating Wheel / Yoke */}
                 <div
-                  className={`relative w-28 h-28 landscape:w-22 landscape:h-22 rounded-full flex items-center justify-center pointer-events-none ${
+                  className={`relative w-32 h-32 landscape:w-26 landscape:h-26 rounded-full flex items-center justify-center pointer-events-none ${
                     isSteerActive ? 'transition-none' : 'transition-transform duration-200 ease-out'
                   }`}
                   style={{
-                    transform: `rotate(${touchSteer * 60}deg)`,
+                    transform: `rotate(${wheelAngle}deg)`,
                     willChange: 'transform'
                   }}
                 >
@@ -757,38 +818,38 @@ export const ControllerView: React.FC = () => {
                   />
 
                   {/* Top Dead-Center Alignment Notch */}
-                  <div className="absolute -top-1.5 w-3 h-3 bg-white rounded-full shadow-[0_0_8px_white] z-20 flex items-center justify-center">
+                  <div className="absolute -top-1.5 w-3.5 h-3.5 bg-white rounded-full shadow-[0_0_8px_white] z-20 flex items-center justify-center">
                     <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: themeColor }} />
                   </div>
 
                   {/* Left Spoke Grip Handle */}
                   <div
-                    className="absolute -left-2 top-1/2 -translate-y-1/2 w-3.5 h-12 rounded-r-lg bg-gray-900 border-2 shadow-md flex items-center justify-center"
+                    className="absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-14 rounded-r-lg bg-gray-900 border-2 shadow-md flex items-center justify-center"
                     style={{ borderColor: themeColor }}
                   >
-                    <div className="w-1 h-6 rounded-full bg-white/40" />
+                    <div className="w-1 h-7 rounded-full bg-white/40" />
                   </div>
 
                   {/* Right Spoke Grip Handle */}
                   <div
-                    className="absolute -right-2 top-1/2 -translate-y-1/2 w-3.5 h-12 rounded-l-lg bg-gray-900 border-2 shadow-md flex items-center justify-center"
+                    className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-14 rounded-l-lg bg-gray-900 border-2 shadow-md flex items-center justify-center"
                     style={{ borderColor: themeColor }}
                   >
-                    <div className="w-1 h-6 rounded-full bg-white/40" />
+                    <div className="w-1 h-7 rounded-full bg-white/40" />
                   </div>
 
                   {/* Horizontal Crossbar */}
-                  <div className="absolute inset-x-2 h-2.5 bg-gray-800/90 border-y border-white/20 rounded flex items-center justify-between px-1.5">
+                  <div className="absolute inset-x-2 h-3 bg-gray-800/90 border-y border-white/20 rounded flex items-center justify-between px-1.5">
                     <span className="text-[6px] font-mono text-gray-400 font-bold">L</span>
                     <span className="text-[6px] font-mono text-gray-400 font-bold">R</span>
                   </div>
 
                   {/* Center Navigation Hub */}
                   <div
-                    className="relative z-10 w-11 h-11 rounded-full bg-black/95 border-2 flex flex-col items-center justify-center shadow-inner"
+                    className="relative z-10 w-12 h-12 rounded-full bg-black/95 border-2 flex flex-col items-center justify-center shadow-inner"
                     style={{ borderColor: themeColor }}
                   >
-                    <ArrowsLeftRight size={14} weight="bold" style={{ color: themeColor }} />
+                    <ArrowsLeftRight size={15} weight="bold" style={{ color: themeColor }} />
                     <span className="text-[7px] font-mono font-bold text-gray-300">
                       {touchSteer !== 0 ? (touchSteer > 0 ? `+${touchSteer.toFixed(2)}` : touchSteer.toFixed(2)) : '0.00'}
                     </span>
@@ -796,9 +857,9 @@ export const ControllerView: React.FC = () => {
                 </div>
 
                 {/* Touch hint when idle */}
-                {touchSteer === 0 && !isSteerActive && (
+                {wheelAngle === 0 && !isSteerActive && (
                   <div className="pointer-events-none absolute bottom-2 flex items-center gap-1 text-[7px] font-mono text-gray-500 uppercase tracking-widest">
-                    <span>◄ TURN ►</span>
+                    <span>◄ ROTATE 360° ►</span>
                   </div>
                 )}
               </div>

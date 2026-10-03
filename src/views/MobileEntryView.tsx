@@ -8,8 +8,10 @@ import {
   ArrowRight,
   Desktop,
   CheckCircle,
-  X
+  X,
+  Image as ImageIcon
 } from '@phosphor-icons/react'
+import jsQR from 'jsqr'
 import { AstroLogo } from '../components/AstroLogo'
 import { LanguageSelector } from '../components/LanguageSelector'
 import { useLanguage } from '../context/LanguageContext'
@@ -31,6 +33,21 @@ export const MobileEntryView: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const scanIntervalRef = useRef<number | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  const parseRoomCodeFromQr = (rawValue: string): string | null => {
+    if (!rawValue) return null
+    try {
+      const url = new URL(rawValue)
+      const roomParam = url.searchParams.get('room')
+      if (roomParam) return roomParam.toUpperCase()
+    } catch {}
+    const match = rawValue.match(/room=([A-Z0-9]+)/i)
+    if (match && match[1]) return match[1].toUpperCase()
+    const cleaned = rawValue.trim().toUpperCase()
+    if (cleaned.length >= 3 && cleaned.length <= 6) return cleaned
+    return null
+  }
 
   const handleLaunch = (codeToUse?: string) => {
     const code = (codeToUse || roomCode).trim().toUpperCase()
@@ -43,57 +60,116 @@ export const MobileEntryView: React.FC = () => {
     navigate(`/controller?room=${code}${slotQuery}`)
   }
 
-  // Camera QR Code Scanner using BarcodeDetector API if supported
+  // File snapshot / image upload fallback (works 100% on HTTP LAN and all devices)
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setErrorMessage(null)
+
+    const img = new Image()
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas')
+        canvas.width = img.width
+        canvas.height = img.height
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return
+        ctx.drawImage(img, 0, 0, img.width, img.height)
+        const imgData = ctx.getImageData(0, 0, img.width, img.height)
+        const qrResult = jsQR(imgData.data, imgData.width, imgData.height)
+        if (qrResult?.data) {
+          const room = parseRoomCodeFromQr(qrResult.data)
+          if (room) {
+            setRoomCode(room)
+            handleLaunch(room)
+            return
+          }
+        }
+        setErrorMessage('QR Code tidak terdeteksi pada foto. Pastikan barcode terlihat jelas atau ketik kode manual.')
+      } catch (err) {
+        console.warn('QR decode error:', err)
+        setErrorMessage('Gagal memproses foto. Silakan ketik kode room secara manual.')
+      }
+    }
+    img.onerror = () => {
+      setErrorMessage('Gagal memuat gambar.')
+    }
+    img.src = URL.createObjectURL(file)
+  }
+
+  // Camera QR Code Scanner with native browser permission request and jsQR processing
   const startCameraScanner = async () => {
     setErrorMessage(null)
-    setIsScanning(true)
+
+    // Check if browser environment supports mediaDevices (requires HTTPS or localhost on modern mobile browsers)
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setErrorMessage(t('httpCameraNote'))
+      // Automatically trigger camera photo snapshot if live video stream isn't permitted over HTTP
+      fileInputRef.current?.click()
+      return
+    }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' }
-      })
+      let stream: MediaStream
+      try {
+        // Attempt ideal environment (back) camera
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } }
+        })
+      } catch {
+        // Fallback for devices without back camera label or strict constraints
+        stream = await navigator.mediaDevices.getUserMedia({ video: true })
+      }
+
       streamRef.current = stream
+      setIsScanning(true)
 
-      if (videoRef.current) {
+      // Short delay for video DOM element mount
+      window.setTimeout(async () => {
+        if (!videoRef.current) return
         videoRef.current.srcObject = stream
-        await videoRef.current.play()
-      }
+        videoRef.current.setAttribute('playsinline', 'true')
+        try {
+          await videoRef.current.play()
+        } catch (e) {
+          console.warn('Video play error:', e)
+        }
 
-      // Check for native BarcodeDetector API
-      const BarcodeDetectorClass = (window as unknown as { BarcodeDetector?: any }).BarcodeDetector
-      if (BarcodeDetectorClass) {
-        const detector = new BarcodeDetectorClass({ formats: ['qr_code'] })
-        scanIntervalRef.current = window.setInterval(async () => {
-          if (!videoRef.current || videoRef.current.readyState < 2) return
-          try {
-            const barcodes = await detector.detect(videoRef.current)
-            if (barcodes && barcodes.length > 0) {
-              const rawValue = barcodes[0].rawValue || ''
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d', { willReadFrequently: true })
+
+        scanIntervalRef.current = window.setInterval(() => {
+          if (!videoRef.current || videoRef.current.readyState < 2 || !ctx) return
+          const v = videoRef.current
+          if (v.videoWidth === 0 || v.videoHeight === 0) return
+
+          canvas.width = v.videoWidth
+          canvas.height = v.videoHeight
+          ctx.drawImage(v, 0, 0, canvas.width, canvas.height)
+          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+
+          const qrResult = jsQR(imgData.data, imgData.width, imgData.height, {
+            inversionAttempts: 'dontInvert'
+          })
+
+          if (qrResult?.data) {
+            const room = parseRoomCodeFromQr(qrResult.data)
+            if (room) {
               stopCameraScanner()
-
-              // Extract room code if full URL, else use raw string
-              try {
-                const url = new URL(rawValue)
-                const roomParam = url.searchParams.get('room')
-                if (roomParam) {
-                  handleLaunch(roomParam)
-                  return
-                }
-              } catch {}
-
-              const match = rawValue.match(/room=([A-Z0-9]+)/i)
-              if (match && match[1]) {
-                handleLaunch(match[1])
-              } else if (rawValue.length >= 3 && rawValue.length <= 6) {
-                handleLaunch(rawValue)
-              }
+              setRoomCode(room)
+              handleLaunch(room)
             }
-          } catch {}
-        }, 300)
-      }
-    } catch (err) {
+          }
+        }, 200)
+      }, 150)
+    } catch (err: unknown) {
       console.warn('Camera error:', err)
-      setErrorMessage(t('cameraPermissionDenied'))
+      const errName = err instanceof Error ? err.name : ''
+      if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
+        setErrorMessage(t('cameraPermissionDenied'))
+      } else {
+        setErrorMessage(`${t('cameraPermissionDenied')} (${errName || 'Notice'})`)
+      }
       stopCameraScanner()
     }
   }
@@ -261,8 +337,18 @@ export const MobileEntryView: React.FC = () => {
                 </div>
               )}
 
+              {/* Hidden File Input for Direct Camera Photo Snapshot (Works 100% on HTTP LAN & all browsers) */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={handleImageUpload}
+              />
+
               {/* Action Buttons */}
-              <div className="space-y-3 pt-2">
+              <div className="space-y-2.5 pt-2">
                 <button
                   type="button"
                   onClick={() => handleLaunch()}
@@ -273,14 +359,27 @@ export const MobileEntryView: React.FC = () => {
                   <ArrowRight size={16} weight="bold" />
                 </button>
 
-                <button
-                  type="button"
-                  onClick={startCameraScanner}
-                  className="w-full py-3 px-4 rounded-2xl border border-white/20 bg-white/5 text-gray-200 font-['Orbitron'] text-xs font-bold tracking-wider flex items-center justify-center gap-2 hover:bg-white/10 active:scale-95 transition"
-                >
-                  <Camera size={18} className="text-[#00F0FF]" />
-                  <span>{t('scanQrCameraBtn')}</span>
-                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={startCameraScanner}
+                    className="py-2.5 px-3 rounded-2xl border border-white/20 bg-white/5 text-gray-200 font-['Orbitron'] text-[11px] font-bold tracking-wider flex items-center justify-center gap-1.5 hover:bg-white/10 active:scale-95 transition text-center"
+                    title="Live Camera Stream Scan"
+                  >
+                    <Camera size={16} className="text-[#00F0FF] shrink-0" />
+                    <span>{t('scanQrCameraBtn')}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="py-2.5 px-3 rounded-2xl border border-white/20 bg-white/5 text-gray-200 font-['Orbitron'] text-[11px] font-bold tracking-wider flex items-center justify-center gap-1.5 hover:bg-white/10 active:scale-95 transition text-center"
+                    title="Snapshot Camera Photo / Upload Image"
+                  >
+                    <ImageIcon size={16} className="text-[#FFE600] shrink-0" />
+                    <span>{t('uploadQrPhotoBtn')}</span>
+                  </button>
+                </div>
               </div>
             </>
           )}

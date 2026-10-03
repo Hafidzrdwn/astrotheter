@@ -346,11 +346,36 @@ export function useHostPeer(initialRoomId?: string): UseHostPeerReturn {
 
               // Standard Controller Input Packet
               if ('p' in data) {
-                const slot = data.p === 2 ? 2 : 1
-                latestInputsRef.current[slot] = data
+                // Security: strictly enforce slot based on the verified WebRTC connection reference
+                const verifiedSlot: PlayerSlot | null =
+                  conn === connP2Ref.current ? 2 : conn === connP1Ref.current ? 1 : null
+                if (!verifiedSlot) return
+
+                // Input sanitization & mathematical bounds clamping
+                const rawSteer = Number(data.st)
+                const clampedSteer = Number.isFinite(rawSteer)
+                  ? Math.max(-1.0, Math.min(1.0, rawSteer))
+                  : 0
+
+                const rawThrust = Number(data.th)
+                const clampedThrust = Number.isFinite(rawThrust)
+                  ? Math.max(0.0, Math.min(1.0, rawThrust))
+                  : 0
+
+                const sanitizedPayload: ControllerInputPayload = {
+                  p: verifiedSlot,
+                  st: clampedSteer,
+                  th: clampedThrust,
+                  re: Boolean(data.re),
+                  bo: Boolean(data.bo),
+                  t: typeof data.t === 'number' ? data.t : Date.now(),
+                  sh: data.sh
+                }
+
+                latestInputsRef.current[verifiedSlot] = sanitizedPayload
                 setLatestInputs((prev) => ({
                   ...prev,
-                  [slot]: data
+                  [verifiedSlot]: sanitizedPayload
                 }))
               }
             } catch (err) {

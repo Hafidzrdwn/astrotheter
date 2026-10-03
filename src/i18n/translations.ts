@@ -174,6 +174,8 @@ export interface TranslationDictionary {
   cameraPermissionDenied: string
   closeCameraBtn: string
   invalidRoomCode: string
+  uploadQrPhotoBtn: string
+  httpCameraNote: string
 }
 
 export const translations: Record<Language, TranslationDictionary> = {
@@ -350,7 +352,9 @@ export const translations: Record<Language, TranslationDictionary> = {
     cameraScanning: 'Point camera at Host screen QR code...',
     cameraPermissionDenied: 'Camera permission denied. Enter code manually below.',
     closeCameraBtn: 'Cancel Scan',
-    invalidRoomCode: 'Please enter a valid 4-letter room code.'
+    invalidRoomCode: 'Please enter a valid 4-letter room code.',
+    uploadQrPhotoBtn: 'TAKE PHOTO / UPLOAD QR IMAGE',
+    httpCameraNote: 'Mobile browsers block live video on plain HTTP. Use QR photo snapshot or enter code below.'
   },
 
   id: {
@@ -526,6 +530,8 @@ export const translations: Record<Language, TranslationDictionary> = {
     cameraScanning: 'Arahkan kamera ke barcode di layar laptop...',
     cameraPermissionDenied: 'Izin kamera ditolak. Silakan ketik kode room secara manual.',
     closeCameraBtn: 'Tutup Kamera',
-    invalidRoomCode: 'Masukkan 4 karakter kode room yang valid.'
+    invalidRoomCode: 'Masukkan 4 karakter kode room yang valid.',
+    uploadQrPhotoBtn: 'AMBIL FOTO / UPLOAD GAMBAR QR',
+    httpCameraNote: 'Browser HP membatasi video live di alamat HTTP lokal. Gunakan tombol foto QR atau ketik kode di bawah.'
   }
 }

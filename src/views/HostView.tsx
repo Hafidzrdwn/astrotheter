@@ -25,6 +25,12 @@ export const HostView: React.FC = () => {
   const [p1Shape, setP1Shape] = useState<ShipShape>('dart')
   const [p2Shape, setP2Shape] = useState<ShipShape>('manta')
 
+  // Developer mode flag (?dev=true or ?test=true)
+  const isDevMode = typeof window !== 'undefined' && (
+    window.location.search.includes('dev=true') ||
+    window.location.search.includes('test=true')
+  )
+
   const {
     roomId,
     connectionState,
@@ -172,14 +178,16 @@ export const HostView: React.FC = () => {
         {/* Arena Bottom Action Controls */}
         <div className="relative z-10 flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-white/10 mt-4">
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={handleTestHaptic}
-              className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 font-['Orbitron'] text-xs font-bold tracking-wider text-gray-200 hover:bg-white/20 active:scale-95 transition"
-            >
-              <Lightning size={16} className="text-[#FFE600]" />
-              {t('testHapticBtn')}
-            </button>
+            {isDevMode && (
+              <button
+                type="button"
+                onClick={handleTestHaptic}
+                className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 font-['Orbitron'] text-xs font-bold tracking-wider text-gray-200 hover:bg-white/20 active:scale-95 transition"
+              >
+                <Lightning size={16} className="text-[#FFE600]" />
+                {t('testHapticBtn')}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setGameState('LOBBY')}

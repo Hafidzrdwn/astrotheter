@@ -70,9 +70,27 @@ export const ControllerView: React.FC = () => {
   const [thrustPercent, setThrustPercent] = useState<number>(0)
   const [hapticEnabled, setHapticEnabled] = useState<boolean>(true)
 
+  // Active drag and gesture states
+  const [isThrustActive, setIsThrustActive] = useState<boolean>(false)
+  const [isSteerActive, setIsSteerActive] = useState<boolean>(false)
+  const isThrustDraggingRef = useRef<boolean>(false)
+  const isSteerDraggingRef = useRef<boolean>(false)
+  const thrustRafRef = useRef<number | null>(null)
+  const steerRafRef = useRef<number | null>(null)
+
   // Slider refs for coordinate calculation
   const thrustTrackRef = useRef<HTMLDivElement>(null)
   const steerTrackRef = useRef<HTMLDivElement>(null)
+  const thrustTrackRectRef = useRef<DOMRect | null>(null)
+  const steerTrackRectRef = useRef<DOMRect | null>(null)
+
+  // Cancel any pending RAFs on unmount
+  useEffect(() => {
+    return () => {
+      if (thrustRafRef.current) cancelAnimationFrame(thrustRafRef.current)
+      if (steerRafRef.current) cancelAnimationFrame(steerRafRef.current)
+    }
+  }, [])
 
   // Player theme styling (P1 Cyan #00F0FF / P2 Pink #FF2A85)
   const effectiveSlot = playerSlot || 1
@@ -150,59 +168,132 @@ export const ControllerView: React.FC = () => {
     })
   }, [activeSteer, thrustPercent, isReeling, isDashing, selectedShape, setInputState])
 
-  // --- Vertical Spring-Slider for Thrust (0% to 100%, springs back to 0 on release) ---
+  // --- Vertical Slider for Thrust (Cruise / Sticky by default, or Spring mode) ---
   const handleThrustPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.currentTarget.setPointerCapture(e.pointerId)
+    isThrustDraggingRef.current = true
+    setIsThrustActive(true)
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId)
+    } catch {}
+    if (thrustTrackRef.current) {
+      thrustTrackRectRef.current = thrustTrackRef.current.getBoundingClientRect()
+    }
     triggerTouchHaptic(25)
     updateThrustFromPointer(e.clientY)
   }
 
   const handleThrustPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.buttons > 0 || e.pressure > 0) {
-      updateThrustFromPointer(e.clientY)
+    if (!isThrustDraggingRef.current) return
+    const clientY = e.clientY
+    if (thrustRafRef.current) {
+      cancelAnimationFrame(thrustRafRef.current)
     }
+    thrustRafRef.current = requestAnimationFrame(() => {
+      updateThrustFromPointer(clientY)
+    })
   }
 
   const handleThrustPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    isThrustDraggingRef.current = false
+    setIsThrustActive(false)
+    thrustTrackRectRef.current = null
+    if (thrustRafRef.current) {
+      cancelAnimationFrame(thrustRafRef.current)
+      thrustRafRef.current = null
+    }
     try {
-      e.currentTarget.releasePointerCapture(e.pointerId)
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId)
+      }
     } catch {}
-    // Spring back to 0
-    setThrustPercent(0)
+    setThrustPercent(0) // Automatically returns to 0 on finger release
+  }
+
+  const handleThrustPointerCancel = (e: React.PointerEvent<HTMLDivElement>) => {
+    isThrustDraggingRef.current = false
+    setIsThrustActive(false)
+    thrustTrackRectRef.current = null
+    if (thrustRafRef.current) {
+      cancelAnimationFrame(thrustRafRef.current)
+      thrustRafRef.current = null
+    }
+    try {
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId)
+      }
+    } catch {}
+    setThrustPercent(0) // Automatically returns to 0 on gesture cancel
   }
 
   const updateThrustFromPointer = (clientY: number) => {
-    if (!thrustTrackRef.current) return
-    const rect = thrustTrackRef.current.getBoundingClientRect()
+    const rect = thrustTrackRectRef.current || thrustTrackRef.current?.getBoundingClientRect()
+    if (!rect) return
     // Calculate inverted progress (top = 100%, bottom = 0%)
     const rawRatio = (rect.bottom - clientY) / rect.height
     const clamped = Math.max(0, Math.min(100, Math.round(rawRatio * 100)))
     setThrustPercent(clamped)
   }
 
-  // --- Horizontal Touch Fallback Steer Slider (-1.0 to +1.0, springs back to 0) ---
+  // --- Horizontal Touch Fallback Steer Slider (-1.0 to +1.0, springs back to 0 on release) ---
   const handleSteerPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.currentTarget.setPointerCapture(e.pointerId)
+    isSteerDraggingRef.current = true
+    setIsSteerActive(true)
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId)
+    } catch {}
+    if (steerTrackRef.current) {
+      steerTrackRectRef.current = steerTrackRef.current.getBoundingClientRect()
+    }
     triggerTouchHaptic(20)
     updateSteerFromPointer(e.clientX)
   }
 
   const handleSteerPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.buttons > 0 || e.pressure > 0) {
-      updateSteerFromPointer(e.clientX)
+    if (!isSteerDraggingRef.current) return
+    const clientX = e.clientX
+    if (steerRafRef.current) {
+      cancelAnimationFrame(steerRafRef.current)
     }
+    steerRafRef.current = requestAnimationFrame(() => {
+      updateSteerFromPointer(clientX)
+    })
   }
 
   const handleSteerPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    isSteerDraggingRef.current = false
+    setIsSteerActive(false)
+    steerTrackRectRef.current = null
+    if (steerRafRef.current) {
+      cancelAnimationFrame(steerRafRef.current)
+      steerRafRef.current = null
+    }
     try {
-      e.currentTarget.releasePointerCapture(e.pointerId)
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId)
+      }
     } catch {}
     setTouchSteer(0) // Springs back to dead center
   }
 
+  const handleSteerPointerCancel = (e: React.PointerEvent<HTMLDivElement>) => {
+    isSteerDraggingRef.current = false
+    setIsSteerActive(false)
+    steerTrackRectRef.current = null
+    if (steerRafRef.current) {
+      cancelAnimationFrame(steerRafRef.current)
+      steerRafRef.current = null
+    }
+    try {
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId)
+      }
+    } catch {}
+    setTouchSteer(0)
+  }
+
   const updateSteerFromPointer = (clientX: number) => {
-    if (!steerTrackRef.current) return
-    const rect = steerTrackRef.current.getBoundingClientRect()
+    const rect = steerTrackRectRef.current || steerTrackRef.current?.getBoundingClientRect()
+    if (!rect) return
     const centerX = rect.left + rect.width / 2
     const offset = clientX - centerX
     const maxOffset = rect.width / 2
@@ -289,7 +380,7 @@ export const ControllerView: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen w-full bg-[#0B0F19] text-gray-100 flex flex-col justify-between p-3 select-none overflow-y-auto overscroll-contain landscape:py-2">
+    <div className="h-[100dvh] max-h-[100dvh] w-full bg-[#0B0F19] text-gray-100 flex flex-col justify-between p-3 pb-16 select-none overflow-y-auto overscroll-y-contain landscape:p-2 landscape:pb-10">
       {/* Background ambient lighting */}
       <div
         className="pointer-events-none fixed -top-24 left-1/2 -translate-x-1/2 h-64 w-64 rounded-full blur-[100px] transition-colors duration-500"
@@ -380,7 +471,7 @@ export const ControllerView: React.FC = () => {
       </header>
 
       {/* Interactive Ship Hull Customizer Carousel */}
-      <div className="relative z-10 my-2 px-3 py-2 rounded-2xl border border-white/10 bg-[#060911]/90 backdrop-blur-md flex items-center justify-between shadow-xl gap-2">
+      <div className="relative z-10 my-2 landscape:my-1 px-3 py-2 landscape:py-1 rounded-2xl border border-white/10 bg-[#060911]/90 backdrop-blur-md flex items-center justify-between shadow-xl gap-2">
         <button
           type="button"
           onClick={handlePrevShape}
@@ -487,7 +578,7 @@ export const ControllerView: React.FC = () => {
           onPointerDown={handleDashDown}
           onPointerUp={handleDashUp}
           onPointerCancel={handleDashUp}
-          className={`w-full max-w-xs py-2.5 px-6 rounded-2xl border flex items-center justify-center gap-3 transition-all duration-150 active:scale-95 ${
+          className={`w-full max-w-xs py-2.5 px-6 rounded-2xl border flex items-center justify-center gap-3 transition-all duration-150 active:scale-95 select-none ${
             isDashing
               ? 'border-[#FFE600] bg-[#FFE600] text-black shadow-[0_0_30px_rgba(255,230,0,0.9)] scale-95'
               : 'border-[#FFE600]/50 bg-[#FFE600]/15 text-[#FFE600] shadow-[0_0_15px_rgba(255,230,0,0.3)]'
@@ -500,12 +591,12 @@ export const ControllerView: React.FC = () => {
         </button>
       </div>
 
-      {/* Main Cockpit Flight Controls (Left: Vertical Spring Thrust | Center: Horizon/Steer | Right: Big Reel Button) */}
+      {/* Main Cockpit Flight Controls (Left: Vertical Thrust | Center: Horizon/Steering Wheel | Right: Big Reel Button) */}
       <main className="relative z-10 flex-1 grid grid-cols-12 gap-3 items-center py-2">
-        {/* LEFT COLUMN: Vertical Spring-Slider for Thrust (0% to 100%) */}
+        {/* LEFT COLUMN: Vertical Slider for Thrust (Auto-returns to 0 on release) */}
         <div className="col-span-4 flex flex-col items-center justify-center h-full">
-          <div className="flex items-center gap-1.5 mb-1.5">
-            <Flame size={16} weight="fill" className="text-[#FF2A85]" />
+          <div className="flex items-center gap-1 mb-1.5 px-0.5">
+            <Flame size={14} weight="fill" className="text-[#FF2A85]" />
             <span className="text-[10px] font-['Orbitron'] font-bold tracking-wider text-gray-300">
               {t('thrustLabel')}
             </span>
@@ -517,16 +608,19 @@ export const ControllerView: React.FC = () => {
             onPointerDown={handleThrustPointerDown}
             onPointerMove={handleThrustPointerMove}
             onPointerUp={handleThrustPointerUp}
-            onPointerCancel={handleThrustPointerUp}
-            className="relative w-20 h-48 rounded-2xl border border-white/20 bg-black/60 p-1.5 flex flex-col justify-end overflow-hidden shadow-2xl backdrop-blur-md active:border-[#00F0FF]/60 cursor-pointer"
+            onPointerCancel={handleThrustPointerCancel}
+            className="relative w-20 h-44 landscape:h-36 rounded-2xl border border-white/20 bg-black/60 p-1.5 flex flex-col justify-end overflow-hidden shadow-2xl backdrop-blur-md active:border-[#00F0FF]/60 cursor-pointer touch-none select-none"
           >
             {/* Level Fill Indicator */}
             <div
-              className="w-full rounded-xl transition-all duration-75 relative flex items-center justify-center"
+              className={`w-full rounded-xl relative flex items-center justify-center pointer-events-none ${
+                isThrustActive ? 'transition-none' : 'transition-all duration-150 ease-out'
+              }`}
               style={{
                 height: `${thrustPercent}%`,
                 background: `linear-gradient(to top, ${themeColor}88, ${themeColor})`,
-                boxShadow: `0 0 20px ${themeColor}`
+                boxShadow: `0 0 20px ${themeColor}`,
+                willChange: 'height'
               }}
             >
               {thrustPercent > 15 && (
@@ -556,9 +650,11 @@ export const ControllerView: React.FC = () => {
             )}
           </div>
 
-          <span className="mt-1 font-mono text-[10px] text-gray-400 font-bold">
-            {thrustPercent}% (SPRING)
-          </span>
+          <div className="mt-1 flex items-center justify-center w-20 text-[9px] font-mono px-0.5">
+            <span className="font-bold text-gray-300">
+              {thrustPercent}%
+            </span>
+          </div>
         </div>
 
         {/* CENTER COLUMN: Steering Telemetry / Horizon Leveler & Fallback Slider */}
@@ -614,37 +710,98 @@ export const ControllerView: React.FC = () => {
               </div>
             </div>
           ) : (
-            /* Fallback Horizontal Spring-Slider */
+            /* Futuristic Cyberpunk Steering Wheel / Flight Yoke */
             <div className="w-full flex flex-col items-center justify-center">
-              <span className="text-[9px] font-['Orbitron'] font-bold text-gray-400 mb-1">
-                {t('steerLabel')}
-              </span>
+              <div className="flex items-center justify-between w-full max-w-[150px] mb-1 px-1 text-[9px] font-mono font-bold">
+                <span className="text-gray-400 flex items-center gap-1 font-['Orbitron']">
+                  <Compass size={11} className="text-[#00F0FF]" />
+                  STEER
+                </span>
+                <span style={{ color: themeColor }}>
+                  {touchSteer !== 0 ? `${touchSteer > 0 ? '+' : ''}${Math.round(touchSteer * 60)}°` : '0°'}
+                </span>
+              </div>
+
+              {/* Touch Drag Wheel Housing */}
               <div
                 ref={steerTrackRef}
                 onPointerDown={handleSteerPointerDown}
                 onPointerMove={handleSteerPointerMove}
                 onPointerUp={handleSteerPointerUp}
-                onPointerCancel={handleSteerPointerUp}
-                className="relative w-full h-16 rounded-xl border border-white/20 bg-black/60 p-1 flex items-center justify-center cursor-pointer shadow-inner active:border-[#00F0FF]/50"
+                onPointerCancel={handleSteerPointerCancel}
+                className="relative w-36 h-36 landscape:w-28 landscape:h-28 rounded-full border-2 border-white/15 bg-black/70 flex items-center justify-center cursor-pointer shadow-2xl active:border-[#00F0FF]/50 touch-none select-none backdrop-blur-md"
               >
-                {/* Center marker */}
-                <div className="pointer-events-none absolute h-full w-[2px] bg-white/30" />
+                {/* Center crosshair guides */}
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-15">
+                  <div className="w-full h-[1px] bg-white" />
+                  <div className="h-full w-[1px] bg-white absolute" />
+                </div>
 
-                {/* Sliding indicator knob */}
+                {/* Rotating Wheel / Yoke */}
                 <div
-                  className="h-12 w-8 rounded-lg flex items-center justify-center transition-transform duration-75 shadow-lg"
+                  className={`relative w-28 h-28 landscape:w-22 landscape:h-22 rounded-full flex items-center justify-center pointer-events-none ${
+                    isSteerActive ? 'transition-none' : 'transition-transform duration-200 ease-out'
+                  }`}
                   style={{
-                    backgroundColor: themeColor,
-                    boxShadow: `0 0 15px ${themeColor}`,
-                    transform: `translateX(${touchSteer * 35}px)`
+                    transform: `rotate(${touchSteer * 60}deg)`,
+                    willChange: 'transform'
                   }}
                 >
-                  <ArrowsLeftRight size={16} className="text-black" />
+                  {/* Outer Rim Ring */}
+                  <div
+                    className="absolute inset-0 rounded-full border-4 shadow-lg"
+                    style={{
+                      borderColor: themeColor,
+                      boxShadow: isSteerActive ? `0 0 25px ${themeColor}` : `0 0 10px ${themeColor}60`
+                    }}
+                  />
+
+                  {/* Top Dead-Center Alignment Notch */}
+                  <div className="absolute -top-1.5 w-3 h-3 bg-white rounded-full shadow-[0_0_8px_white] z-20 flex items-center justify-center">
+                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: themeColor }} />
+                  </div>
+
+                  {/* Left Spoke Grip Handle */}
+                  <div
+                    className="absolute -left-2 top-1/2 -translate-y-1/2 w-3.5 h-12 rounded-r-lg bg-gray-900 border-2 shadow-md flex items-center justify-center"
+                    style={{ borderColor: themeColor }}
+                  >
+                    <div className="w-1 h-6 rounded-full bg-white/40" />
+                  </div>
+
+                  {/* Right Spoke Grip Handle */}
+                  <div
+                    className="absolute -right-2 top-1/2 -translate-y-1/2 w-3.5 h-12 rounded-l-lg bg-gray-900 border-2 shadow-md flex items-center justify-center"
+                    style={{ borderColor: themeColor }}
+                  >
+                    <div className="w-1 h-6 rounded-full bg-white/40" />
+                  </div>
+
+                  {/* Horizontal Crossbar */}
+                  <div className="absolute inset-x-2 h-2.5 bg-gray-800/90 border-y border-white/20 rounded flex items-center justify-between px-1.5">
+                    <span className="text-[6px] font-mono text-gray-400 font-bold">L</span>
+                    <span className="text-[6px] font-mono text-gray-400 font-bold">R</span>
+                  </div>
+
+                  {/* Center Navigation Hub */}
+                  <div
+                    className="relative z-10 w-11 h-11 rounded-full bg-black/95 border-2 flex flex-col items-center justify-center shadow-inner"
+                    style={{ borderColor: themeColor }}
+                  >
+                    <ArrowsLeftRight size={14} weight="bold" style={{ color: themeColor }} />
+                    <span className="text-[7px] font-mono font-bold text-gray-300">
+                      {touchSteer !== 0 ? (touchSteer > 0 ? `+${touchSteer.toFixed(2)}` : touchSteer.toFixed(2)) : '0.00'}
+                    </span>
+                  </div>
                 </div>
+
+                {/* Touch hint when idle */}
+                {touchSteer === 0 && !isSteerActive && (
+                  <div className="pointer-events-none absolute bottom-2 flex items-center gap-1 text-[7px] font-mono text-gray-500 uppercase tracking-widest">
+                    <span>◄ TURN ►</span>
+                  </div>
+                )}
               </div>
-              <span className="mt-1 font-mono text-[10px] text-gray-400">
-                {touchSteer > 0 ? `+${touchSteer.toFixed(2)} R` : `${touchSteer.toFixed(2)} L`}
-              </span>
             </div>
           )}
 
@@ -670,7 +827,7 @@ export const ControllerView: React.FC = () => {
             onPointerDown={handleReelDown}
             onPointerUp={handleReelUp}
             onPointerCancel={handleReelUp}
-            className={`relative h-44 w-24 rounded-2xl border flex flex-col items-center justify-center gap-3 transition-all duration-100 active:scale-95 shadow-2xl backdrop-blur-md cursor-pointer ${
+            className={`relative h-44 landscape:h-36 w-24 rounded-2xl border flex flex-col items-center justify-center gap-3 transition-all duration-100 active:scale-95 shadow-2xl backdrop-blur-md cursor-pointer select-none ${
               isReeling
                 ? 'border-[#00F0FF] bg-[#00F0FF] text-black shadow-[0_0_35px_rgba(0,240,255,0.9)] scale-95'
                 : 'border-[#00F0FF]/50 bg-[#00F0FF]/15 text-[#00F0FF] shadow-[0_0_15px_rgba(0,240,255,0.3)]'

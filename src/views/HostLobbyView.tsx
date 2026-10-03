@@ -139,6 +139,12 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
     prevP2Ref.current = player2Connected || simulateP2
   }, [player2Connected, simulateP2])
 
+  // Developer / Test mode isolation (?dev=true or ?test=true)
+  const isDevMode = typeof window !== 'undefined' && (
+    window.location.search.includes('dev=true') ||
+    window.location.search.includes('test=true')
+  )
+
   // Co-op 2-second synchronized "Reel" hold mechanic
   const [holdProgress, setHoldProgress] = useState(0) // 0 to 100%
   const [countdown, setCountdown] = useState<number | null>(null) // 3, 2, 1, 0 (Launch)
@@ -230,16 +236,18 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
 
         {/* Room, Quick Desktop Sandbox, Language Selector, and Controls */}
         <div className="flex items-center flex-wrap gap-2.5">
-          {/* Quick Desktop Test Sandbox (Solo Bypass) */}
-          <button
-            type="button"
-            onClick={onStartGame}
-            className="flex items-center gap-2 rounded-xl border border-[#FFE600]/40 bg-[#FFE600]/15 px-3 py-2 text-xs font-bold font-['Orbitron'] text-[#FFE600] transition hover:bg-[#FFE600]/25 hover:shadow-[0_0_15px_rgba(255,230,0,0.4)] active:scale-95"
-            title="Instant desktop test with WASD and Arrow Keys"
-          >
-            <GameController size={18} weight="duotone" />
-            <span>{t('quickSandboxBtn')}</span>
-          </button>
+          {/* Quick Desktop Test Sandbox (Solo Bypass - Dev Only) */}
+          {isDevMode && (
+            <button
+              type="button"
+              onClick={onStartGame}
+              className="flex items-center gap-2 rounded-xl border border-[#FFE600]/40 bg-[#FFE600]/15 px-3 py-2 text-xs font-bold font-['Orbitron'] text-[#FFE600] transition hover:bg-[#FFE600]/25 hover:shadow-[0_0_15px_rgba(255,230,0,0.4)] active:scale-95"
+              title="Instant desktop test with WASD and Arrow Keys"
+            >
+              <GameController size={18} weight="duotone" />
+              <span>{t('quickSandboxBtn')}</span>
+            </button>
+          )}
 
           {/* Language Switcher (EN | ID) */}
           <LanguageSelector />
@@ -588,8 +596,8 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
                 </button>
               </div>
 
-              {/* Solo Test Simulation Toggle Button */}
-              {!player2Connected && (
+              {/* Solo Test Simulation Toggle Button (Dev Only) */}
+              {isDevMode && !player2Connected && (
                 <div className="mb-3">
                   <button
                     type="button"

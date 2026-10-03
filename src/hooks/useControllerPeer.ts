@@ -126,9 +126,8 @@ export function useControllerPeer(targetRoomId?: string, preferredSlot?: PlayerS
 
     peerRef.current = peer
 
-    peer.on('open', (clientId) => {
+    peer.on('open', (_clientId) => {
       if (isCleaningUpRef.current) return
-      console.log(`[ControllerPeer] Client peer ready (${clientId}). Connecting to ${normalizedRoomId}...`)
       const hostPeerId = toHostPeerId(normalizedRoomId)
 
       // Connect to host with standard PeerJS DataChannel
@@ -138,7 +137,6 @@ export function useControllerPeer(targetRoomId?: string, preferredSlot?: PlayerS
 
       conn.on('open', () => {
         if (isCleaningUpRef.current) return
-        console.log(`[ControllerPeer] Connected to Host: ${hostPeerId}`)
         lastHeartbeatTimeRef.current = Date.now()
         setConnectionState('CONNECTED')
         setErrorMessage(null)
@@ -178,7 +176,6 @@ export function useControllerPeer(targetRoomId?: string, preferredSlot?: PlayerS
 
             if (event.e === 'SLOT_ASSIGNED' && event.slot) {
               setPlayerSlot(event.slot)
-              console.log(`[ControllerPeer] Assigned to Slot ${event.slot}`)
             } else if (event.e === 'ROOM_FULL') {
               setConnectionState('ROOM_FULL')
               setErrorMessage('Room is already full with 2 players.')

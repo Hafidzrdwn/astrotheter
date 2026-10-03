@@ -114,7 +114,7 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
   const [showIpEdit, setShowIpEdit] = useState(false)
   const port = typeof window !== 'undefined' && window.location.port ? `:${window.location.port}` : ''
   const protocol = typeof window !== 'undefined' ? window.location.protocol : 'http:'
-  const controllerUrl = `${protocol}//${hostIp}${port}/controller?room=${roomId}`
+  const controllerUrl = `${protocol}//${hostIp}${port}/#/controller?room=${roomId}`
 
   const handleUpdateIp = (newIp: string) => {
     setHostIp(newIp)

@@ -8,7 +8,6 @@ import {
   type ClientCommandPayload,
   generateRoomId,
   toHostPeerId,
-  fromHostPeerId,
   RTC_CONFIG
 } from '../types/network'
 
@@ -150,7 +149,6 @@ export function useHostPeer(initialRoomId?: string): UseHostPeerReturn {
         if (!isMounted || isCleaningUpRef.current) return
         const peer = peerRef.current
         if (peer && !peer.destroyed && peer.disconnected) {
-          console.log('[HostPeer] Attempting to reconnect to PeerJS broker...')
           try {
             peer.reconnect()
           } catch (err) {
@@ -172,16 +170,13 @@ export function useHostPeer(initialRoomId?: string): UseHostPeerReturn {
 
       peerRef.current = peer
 
-      peer.on('open', (id) => {
+      peer.on('open', (_id) => {
         if (!isMounted || isCleaningUpRef.current) return
-        console.log(`[HostPeer] Room online with ID: ${fromHostPeerId(id)} (${id})`)
         setConnectionState('CONNECTED')
         setErrorMessage(null)
       })
 
       peer.on('connection', (conn: DataConnection) => {
-        console.log(`[HostPeer] Incoming connection attempt from ${conn.peer}`)
-
         conn.on('open', () => {
           if (!isMounted || isCleaningUpRef.current) return
 
@@ -192,28 +187,24 @@ export function useHostPeer(initialRoomId?: string): UseHostPeerReturn {
             assignedSlot = 1
             connP1Ref.current = conn
             setPlayer1Connected(true)
-            console.log(`[HostPeer] Player 1 (Cyan) reconnected from ${conn.peer}`)
           }
           // Reconnect handling: if the incoming peer is already known in Slot 2
           else if (connP2Ref.current && connP2Ref.current.peer === conn.peer) {
             assignedSlot = 2
             connP2Ref.current = conn
             setPlayer2Connected(true)
-            console.log(`[HostPeer] Player 2 (Pink) reconnected from ${conn.peer}`)
           }
           // Slot 1 allocation
           else if (!connP1Ref.current || !connP1Ref.current.open) {
             assignedSlot = 1
             connP1Ref.current = conn
             setPlayer1Connected(true)
-            console.log(`[HostPeer] Player 1 (Cyan) assigned to ${conn.peer}`)
           }
           // Slot 2 allocation
           else if (!connP2Ref.current || !connP2Ref.current.open) {
             assignedSlot = 2
             connP2Ref.current = conn
             setPlayer2Connected(true)
-            console.log(`[HostPeer] Player 2 (Pink) assigned to ${conn.peer}`)
           }
           // Room full rejection: 2 active players already occupying both slots
           else {
@@ -393,12 +384,10 @@ export function useHostPeer(initialRoomId?: string): UseHostPeerReturn {
           conn.on('close', () => {
             if (!isMounted || isCleaningUpRef.current) return
             if (connP1Ref.current === conn) {
-              console.log('[HostPeer] Player 1 disconnected')
               connP1Ref.current = null
               setPlayer1Connected(false)
               latestInputsRef.current[1] = null
             } else if (connP2Ref.current === conn) {
-              console.log('[HostPeer] Player 2 disconnected')
               connP2Ref.current = null
               setPlayer2Connected(false)
               latestInputsRef.current[2] = null

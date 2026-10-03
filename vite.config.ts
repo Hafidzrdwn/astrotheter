@@ -12,4 +12,8 @@ export default defineConfig({
     host: true, // Exposes server to local network (0.0.0.0) so phone can access via Wi-Fi IP
     port: 5173,
   },
+  preview: {
+    host: true,
+    port: 5173,
+  },
 })

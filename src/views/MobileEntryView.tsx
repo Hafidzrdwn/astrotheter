@@ -389,7 +389,7 @@ export const MobileEntryView: React.FC = () => {
         <div className="text-center mt-6">
           <button
             type="button"
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/host')}
             className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 font-['Space_Grotesk'] transition"
           >
             <Desktop size={14} />

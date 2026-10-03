@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+@theme {
+  --color-space-navy: #0B0F19;
+  --color-neon-pink: #FF2A85;
+  --color-neon-cyan: #00F0FF;
+  --color-neon-yellow: #FFE600;
+
+  --font-orbitron: "Orbitron", sans-serif;
+  --font-rajdhani: "Rajdhani", sans-serif;
+  --font-space: "Space Grotesk", sans-serif;
+}
+
+:root {
+  color-scheme: dark;
+  --bg-deep-navy: #0B0F19;
+  --glow-pink: #FF2A85;
+  --glow-cyan: #00F0FF;
+  --glow-yellow: #FFE600;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background-color: #0B0F19;
+  color: #f3f4f6;
+  font-family: var(--font-space), system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Cosmic Grid background pattern */
+.bg-cosmic-grid {
+  background-image: 
+    linear-gradient(to right, rgba(0, 240, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 240, 255, 0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* Neon glow helper utilities */
+.glow-cyan-sm {
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.35);
+}
+
+.glow-cyan-lg {
+  box-shadow: 0 0 35px rgba(0, 240, 255, 0.6), inset 0 0 20px rgba(0, 240, 255, 0.2);
+}
+
+.glow-pink-sm {
+  box-shadow: 0 0 15px rgba(255, 42, 133, 0.35);
+}
+
+.glow-pink-lg {
+  box-shadow: 0 0 35px rgba(255, 42, 133, 0.6), inset 0 0 20px rgba(255, 42, 133, 0.2);
+}
+
+.glow-yellow-sm {
+  box-shadow: 0 0 15px rgba(255, 230, 0, 0.35);
+}
+
+.text-glow-cyan {
+  text-shadow: 0 0 12px rgba(0, 240, 255, 0.7);
+}
+
+.text-glow-pink {
+  text-shadow: 0 0 12px rgba(255, 42, 133, 0.7);
+}
+
+.text-glow-yellow {
+  text-shadow: 0 0 12px rgba(255, 230, 0, 0.7);
+}
+
+/* Prevent unwanted pull-to-refresh on mobile */
+.overscroll-contain {
+  overscroll-behavior: contain;
+}

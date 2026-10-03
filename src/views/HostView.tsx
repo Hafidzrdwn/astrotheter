@@ -9,6 +9,7 @@ import {
   Robot
 } from '@phosphor-icons/react'
 import { useHostPeer } from '../hooks/useHostPeer'
+import { type ShipShape } from '../types/network'
 import { HostLobbyView } from './HostLobbyView'
 import { GameCanvas } from '../components/GameCanvas'
 import { AstroLogo } from '../components/AstroLogo'
@@ -21,6 +22,8 @@ export const HostView: React.FC = () => {
   const { t } = useLanguage()
   const [gameState, setGameState] = useState<HostGameState>('LOBBY')
   const [simulateP2, setSimulateP2] = useState<boolean>(false)
+  const [p1Shape, setP1Shape] = useState<ShipShape>('dart')
+  const [p2Shape, setP2Shape] = useState<ShipShape>('manta')
 
   const {
     roomId,
@@ -33,6 +36,19 @@ export const HostView: React.FC = () => {
     getLatestInputs,
     regenerateRoom
   } = useHostPeer()
+
+  // Real-time synchronization of ship customizer selections from players' phones
+  React.useEffect(() => {
+    if (latestInputs[1]?.sh && latestInputs[1].sh !== p1Shape) {
+      setP1Shape(latestInputs[1].sh)
+    }
+  }, [latestInputs[1]?.sh, p1Shape])
+
+  React.useEffect(() => {
+    if (latestInputs[2]?.sh && latestInputs[2].sh !== p2Shape) {
+      setP2Shape(latestInputs[2].sh)
+    }
+  }, [latestInputs[2]?.sh, p2Shape])
 
   const handleTestHaptic = () => {
     broadcastFeedback({
@@ -52,6 +68,10 @@ export const HostView: React.FC = () => {
         simulateP2={simulateP2}
         onToggleSimulateP2={() => setSimulateP2(!simulateP2)}
         latestInputs={latestInputs}
+        player1Shape={p1Shape}
+        player2Shape={p2Shape}
+        onP1ShapeChange={setP1Shape}
+        onP2ShapeChange={setP2Shape}
         onStartGame={() => {
           // If starting without P2 connected, auto-enable P2 simulation
           if (!player2Connected) {
@@ -124,6 +144,8 @@ export const HostView: React.FC = () => {
         <GameCanvas
           getLatestInputs={getLatestInputs}
           isP2Simulated={simulateP2}
+          player1Shape={p1Shape}
+          player2Shape={p2Shape}
           onCollisionFeedback={(player) => {
             sendFeedbackToPlayer(player, {
               e: 'COLLISION',

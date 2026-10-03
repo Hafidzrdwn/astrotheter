@@ -338,6 +338,33 @@ class SoundFXSynthesizer {
     osc.start(now)
     osc.stop(now + (isHeavy ? 0.22 : 0.12))
   }
+
+  /**
+   * Starlight Crystal / Collectible chime
+   */
+  public playStarCollect(): void {
+    const ctx = this.getContext()
+    if (!ctx) return
+
+    const now = ctx.currentTime
+    const notes = [587.33, 739.99, 880.0, 1174.66] // D5, F#5, A5, D6 sparkling chord
+    notes.forEach((freq, idx) => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      const noteTime = now + idx * 0.04
+
+      osc.type = 'sine'
+      osc.frequency.setValueAtTime(freq, noteTime)
+      gain.gain.setValueAtTime(0.12, noteTime)
+      gain.gain.exponentialRampToValueAtTime(0.0001, noteTime + 0.25)
+
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+
+      osc.start(noteTime)
+      osc.stop(noteTime + 0.25)
+    })
+  }
 }
 
 export const SoundFX = new SoundFXSynthesizer()

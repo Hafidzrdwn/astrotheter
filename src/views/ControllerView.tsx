@@ -5,19 +5,24 @@ import {
   Crosshair,
   Vibrate,
   WifiHigh,
-  Desktop,
   WarningCircle,
   ArrowsClockwise,
   Lightning,
   ArrowsLeftRight,
   HandPointing,
-  Compass
+  Compass,
+  SignOut,
+  CaretLeft,
+  CaretRight
 } from '@phosphor-icons/react'
 import { useControllerPeer } from '../hooks/useControllerPeer'
 import { useDeviceOrientation } from '../hooks/useDeviceOrientation'
 import { useLanguage } from '../context/LanguageContext'
 import { AstroLogo } from '../components/AstroLogo'
 import { LanguageSelector } from '../components/LanguageSelector'
+import { ShipPreview } from '../components/ShipPreview'
+import { ALL_SHIP_SHAPES } from '../utils/shipRenderers'
+import { type ShipShape } from '../types/network'
 
 export const ControllerView: React.FC = () => {
   const { t } = useLanguage()
@@ -64,6 +69,51 @@ export const ControllerView: React.FC = () => {
   const isP1 = effectiveSlot === 1
   const themeColor = isP1 ? '#00F0FF' : '#FF2A85'
 
+  // Selected spacecraft hull shape customization
+  const [selectedShape, setSelectedShape] = useState<ShipShape>(isP1 ? 'dart' : 'manta')
+
+  const handlePrevShape = () => {
+    const idx = ALL_SHIP_SHAPES.indexOf(selectedShape)
+    const nextIdx = (idx - 1 + ALL_SHIP_SHAPES.length) % ALL_SHIP_SHAPES.length
+    setSelectedShape(ALL_SHIP_SHAPES[nextIdx])
+    triggerTouchHaptic(15)
+  }
+
+  const handleNextShape = () => {
+    const idx = ALL_SHIP_SHAPES.indexOf(selectedShape)
+    const nextIdx = (idx + 1) % ALL_SHIP_SHAPES.length
+    setSelectedShape(ALL_SHIP_SHAPES[nextIdx])
+    triggerTouchHaptic(15)
+  }
+
+  const handleExit = () => {
+    if (window.confirm(t('exitConfirm'))) {
+      window.location.href = '/'
+    }
+  }
+
+  const getShipName = (shape: ShipShape) => {
+    switch (shape) {
+      case 'dart': return t('shipDartName')
+      case 'manta': return t('shipMantaName')
+      case 'ring': return t('shipRingName')
+      case 'saucer': return t('shipSaucerName')
+      case 'scarab': return t('shipScarabName')
+      case 'jelly': return t('shipJellyName')
+    }
+  }
+
+  const getShipDesc = (shape: ShipShape) => {
+    switch (shape) {
+      case 'dart': return t('shipDartDesc')
+      case 'manta': return t('shipMantaDesc')
+      case 'ring': return t('shipRingDesc')
+      case 'saucer': return t('shipSaucerDesc')
+      case 'scarab': return t('shipScarabDesc')
+      case 'jelly': return t('shipJellyDesc')
+    }
+  }
+
   // Micro haptic pulse on interactions
   const triggerTouchHaptic = useCallback((duration: number | number[] = 20) => {
     if (hapticEnabled && typeof navigator !== 'undefined' && 'vibrate' in navigator) {
@@ -85,9 +135,10 @@ export const ControllerView: React.FC = () => {
       steer: activeSteer,
       thrust: Number((thrustPercent / 100).toFixed(3)),
       reel: isReeling,
-      boost: isDashing
+      boost: isDashing,
+      shape: selectedShape
     })
-  }, [activeSteer, thrustPercent, isReeling, isDashing, setInputState])
+  }, [activeSteer, thrustPercent, isReeling, isDashing, selectedShape, setInputState])
 
   // --- Vertical Spring-Slider for Thrust (0% to 100%, springs back to 0 on release) ---
   const handleThrustPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -220,30 +271,27 @@ export const ControllerView: React.FC = () => {
       />
 
       {/* Top Header Bar */}
-      <header className="relative z-10 flex items-center justify-between border-b border-white/10 pb-2">
-        <div className="flex items-center gap-2">
-          <AstroLogo size={32} />
-          <div>
-            <h1 className="font-['Orbitron'] text-xs font-black tracking-wider text-white">
-              ASTRO<span style={{ color: themeColor }}>TETHER</span>
-            </h1>
-            <p className="text-[10px] text-gray-400 font-mono">{roomId}</p>
+      <header className="relative z-10 flex items-center justify-between border-b border-white/10 pb-2.5 gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <AstroLogo size={28} />
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="font-['Orbitron'] text-xs font-black tracking-wider text-white">
+                ASTRO<span style={{ color: themeColor }}>TETHER</span>
+              </span>
+              <span
+                className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border"
+                style={{ borderColor: `${themeColor}40`, backgroundColor: `${themeColor}15`, color: themeColor }}
+              >
+                {isP1 ? 'P1 ALPHA' : 'P2 BETA'}
+              </span>
+            </div>
+            <p className="text-[10px] text-gray-400 font-mono truncate">{roomId}</p>
           </div>
         </div>
 
-        {/* Assigned Slot Indicator */}
-        <div className="flex items-center rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 gap-2">
-          <span
-            className="h-2 w-2 rounded-full animate-pulse"
-            style={{ backgroundColor: themeColor }}
-          />
-          <span className="font-['Orbitron'] text-xs font-bold" style={{ color: themeColor }}>
-            {isP1 ? 'P1 ALPHA (CYAN)' : 'P2 BETA (PINK)'}
-          </span>
-        </div>
-
-        {/* Status Indicators & Language Selector */}
-        <div className="flex items-center gap-1.5">
+        {/* Status Indicators, Language Selector, and Exit Button */}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
           <LanguageSelector showIcon={false} />
 
           <button
@@ -254,23 +302,61 @@ export const ControllerView: React.FC = () => {
             }`}
             title="Toggle Vibration"
           >
-            <Vibrate size={16} />
+            <Vibrate size={15} />
           </button>
 
-          <div className="flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-400">
-            <WifiHigh size={14} />
+          <div className="flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-1 text-[9px] font-bold text-emerald-400">
+            <WifiHigh size={12} />
             <span>{latencyMs > 0 ? `${latencyMs}ms` : '40Hz'}</span>
           </div>
 
-          <Link
-            to="/host"
-            className="p-1.5 rounded-lg border border-white/10 bg-white/5 text-gray-400 hover:text-white"
-            title="Desktop Host"
+          <button
+            type="button"
+            onClick={handleExit}
+            className="flex items-center gap-1 px-2 py-1 rounded-lg border border-red-500/40 bg-red-500/15 text-red-400 hover:bg-red-500/25 active:scale-95 transition"
+            title={t('exitBtn')}
           >
-            <Desktop size={15} />
-          </Link>
+            <SignOut size={15} weight="bold" />
+            <span className="text-[10px] font-bold font-mono">{t('exitBtn')}</span>
+          </button>
         </div>
       </header>
+
+      {/* Interactive Ship Hull Customizer Carousel */}
+      <div className="relative z-10 my-2 px-3 py-2 rounded-2xl border border-white/10 bg-[#060911]/90 backdrop-blur-md flex items-center justify-between shadow-xl">
+        <button
+          type="button"
+          onClick={handlePrevShape}
+          className="p-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:text-white active:scale-90 transition"
+          title="Previous Ship"
+        >
+          <CaretLeft size={18} weight="bold" />
+        </button>
+
+        <div className="flex items-center gap-3 min-w-0">
+          <ShipPreview shape={selectedShape} color={themeColor} size={48} />
+          <div className="min-w-0">
+            <div className="text-[9px] font-mono text-gray-400 font-bold uppercase tracking-wider">
+              {t('shipSelectTitle')}
+            </div>
+            <div className="font-['Orbitron'] text-xs font-black truncate" style={{ color: themeColor }}>
+              {getShipName(selectedShape)}
+            </div>
+            <p className="text-[10px] text-gray-400 font-['Space_Grotesk'] truncate">
+              {getShipDesc(selectedShape)}
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleNextShape}
+          className="p-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:text-white active:scale-90 transition"
+          title="Next Ship"
+        >
+          <CaretRight size={18} weight="bold" />
+        </button>
+      </div>
 
       {/* Disconnect Alert if connection lost */}
       {connectionState === 'DISCONNECTED' && (

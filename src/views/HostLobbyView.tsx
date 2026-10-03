@@ -15,9 +15,12 @@ import {
   DeviceMobile,
   Robot,
   WifiHigh,
-  Wrench
+  Wrench,
+  CaretLeft,
+  CaretRight
 } from '@phosphor-icons/react'
-import { type ControllerInputPayload } from '../types/network'
+import { type ControllerInputPayload, type ShipShape } from '../types/network'
+import { ShipPreview } from '../components/ShipPreview'
 import {
   playPlayerJoinSound,
   playCountdownTick,
@@ -27,6 +30,8 @@ import {
 import { useLanguage } from '../context/LanguageContext'
 import { AstroLogo } from '../components/AstroLogo'
 import { LanguageSelector } from '../components/LanguageSelector'
+
+const SHIP_SHAPES: ShipShape[] = ['dart', 'manta', 'ring', 'saucer', 'scarab', 'jelly']
 
 export interface HostLobbyViewProps {
   roomId: string
@@ -38,6 +43,10 @@ export interface HostLobbyViewProps {
     1: ControllerInputPayload | null
     2: ControllerInputPayload | null
   }
+  player1Shape?: ShipShape
+  player2Shape?: ShipShape
+  onP1ShapeChange?: (shape: ShipShape) => void
+  onP2ShapeChange?: (shape: ShipShape) => void
   onStartGame: () => void
   regenerateRoom: () => void
 }
@@ -49,11 +58,45 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
   simulateP2,
   onToggleSimulateP2,
   latestInputs,
+  player1Shape = 'dart',
+  player2Shape = 'manta',
+  onP1ShapeChange,
+  onP2ShapeChange,
   onStartGame,
   regenerateRoom
 }) => {
   const { t } = useLanguage()
   const [copied, setCopied] = useState(false)
+
+  const getShapeName = (shape: ShipShape) => {
+    switch (shape) {
+      case 'dart': return t('shipDartName')
+      case 'manta': return t('shipMantaName')
+      case 'ring': return t('shipRingName')
+      case 'saucer': return t('shipSaucerName')
+      case 'scarab': return t('shipScarabName')
+      case 'jelly': return t('shipJellyName')
+      default: return shape
+    }
+  }
+
+  const getShapeDesc = (shape: ShipShape) => {
+    switch (shape) {
+      case 'dart': return t('shipDartDesc')
+      case 'manta': return t('shipMantaDesc')
+      case 'ring': return t('shipRingDesc')
+      case 'saucer': return t('shipSaucerDesc')
+      case 'scarab': return t('shipScarabDesc')
+      case 'jelly': return t('shipJellyDesc')
+      default: return ''
+    }
+  }
+
+  const cycleShape = (current: ShipShape, dir: number): ShipShape => {
+    const idx = SHIP_SHAPES.indexOf(current)
+    const nextIdx = (idx + dir + SHIP_SHAPES.length) % SHIP_SHAPES.length
+    return SHIP_SHAPES[nextIdx]
+  }
 
   // Configurable host IP for phone Wi-Fi access (Default to detected Wi-Fi IP: 192.168.100.4)
   const [hostIp, setHostIp] = useState<string>(() => {
@@ -405,6 +448,46 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
                 </span>
               </div>
 
+              {/* Spacecraft Model Selector & Live Preview */}
+              <div className="mb-3 rounded-xl border border-white/10 bg-black/40 p-2.5 flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => onP1ShapeChange?.(cycleShape(player1Shape, -1))}
+                  className="h-8 w-8 rounded-lg bg-white/5 hover:bg-white/20 active:scale-95 text-gray-300 hover:text-white flex items-center justify-center transition border border-white/10 shrink-0"
+                  title="Previous hull model"
+                >
+                  <CaretLeft size={16} weight="bold" />
+                </button>
+
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <div className="relative shrink-0 flex items-center justify-center p-1 rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/30">
+                    <ShipPreview shape={player1Shape} color="#00F0FF" size={40} isAnimated />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-['Orbitron'] text-xs font-bold text-white truncate">
+                        {getShapeName(player1Shape)}
+                      </span>
+                      <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded bg-[#00F0FF]/20 text-[#00F0FF]">
+                        {player1Shape}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-gray-400 font-['Space_Grotesk'] truncate">
+                      {getShapeDesc(player1Shape)}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => onP1ShapeChange?.(cycleShape(player1Shape, 1))}
+                  className="h-8 w-8 rounded-lg bg-white/5 hover:bg-white/20 active:scale-95 text-gray-300 hover:text-white flex items-center justify-center transition border border-white/10 shrink-0"
+                  title="Next hull model"
+                >
+                  <CaretRight size={16} weight="bold" />
+                </button>
+              </div>
+
               {/* Status footer inside card */}
               <div className="flex items-center justify-between border-t border-white/10 pt-2 text-[11px] font-mono text-gray-400">
                 <span>SIGNAL: {player1Connected ? 'STABLE (60 FPS)' : 'OFFLINE'}</span>
@@ -463,6 +546,46 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
                     ? t('simulatedP2Ready')
                     : t('waitingCopilot')}
                 </span>
+              </div>
+
+              {/* Spacecraft Model Selector & Live Preview */}
+              <div className="mb-3 rounded-xl border border-white/10 bg-black/40 p-2.5 flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => onP2ShapeChange?.(cycleShape(player2Shape, -1))}
+                  className="h-8 w-8 rounded-lg bg-white/5 hover:bg-white/20 active:scale-95 text-gray-300 hover:text-white flex items-center justify-center transition border border-white/10 shrink-0"
+                  title="Previous hull model"
+                >
+                  <CaretLeft size={16} weight="bold" />
+                </button>
+
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <div className="relative shrink-0 flex items-center justify-center p-1 rounded-xl bg-[#FF2A85]/10 border border-[#FF2A85]/30">
+                    <ShipPreview shape={player2Shape} color="#FF2A85" size={40} isAnimated />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-['Orbitron'] text-xs font-bold text-white truncate">
+                        {getShapeName(player2Shape)}
+                      </span>
+                      <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded bg-[#FF2A85]/20 text-[#FF2A85]">
+                        {player2Shape}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-gray-400 font-['Space_Grotesk'] truncate">
+                      {getShapeDesc(player2Shape)}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => onP2ShapeChange?.(cycleShape(player2Shape, 1))}
+                  className="h-8 w-8 rounded-lg bg-white/5 hover:bg-white/20 active:scale-95 text-gray-300 hover:text-white flex items-center justify-center transition border border-white/10 shrink-0"
+                  title="Next hull model"
+                >
+                  <CaretRight size={16} weight="bold" />
+                </button>
               </div>
 
               {/* Solo Test Simulation Toggle Button */}

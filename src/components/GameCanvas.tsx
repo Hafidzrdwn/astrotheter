@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import Matter from 'matter-js'
-import { type ControllerInputPayload } from '../types/network'
+import { type ControllerInputPayload, type ShipShape } from '../types/network'
 import { LevelManager } from '../game/LevelManager'
 import { useCoupleSynergy, type CoupleSynergyResult } from '../hooks/useCoupleSynergy'
 import { playTone, playWarpLaunchSequence } from '../utils/audio'
@@ -10,6 +10,7 @@ import { useLanguage } from '../context/LanguageContext'
 import { HowToWinModal } from './HowToWinModal'
 import { MissionTracker } from './MissionTracker'
 import { MiniMap, type RadarEntity } from './MiniMap'
+import { drawShipHull } from '../utils/shipRenderers'
 
 const { Engine, World, Bodies, Body, Constraint, Events } = Matter
 
@@ -44,6 +45,8 @@ export interface GameCanvasProps {
   onStageCompleted?: (result: CoupleSynergyResult) => void
   onReturnToLobby?: () => void
   isP2Simulated?: boolean
+  player1Shape?: ShipShape
+  player2Shape?: ShipShape
 }
 
 export const GameCanvas: React.FC<GameCanvasProps> = ({
@@ -53,7 +56,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   onCollisionFeedback,
   onStageCompleted,
   onReturnToLobby,
-  isP2Simulated = false
+  isP2Simulated = false,
+  player1Shape = 'dart',
+  player2Shape = 'manta'
 }) => {
   const { t } = useLanguage()
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -224,6 +229,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         const result = evaluateFinalSynergy()
         setGameOverResult({ outcome: 'VICTORY', result })
         onStageCompleted?.(result)
+      },
+      onCrystalCollected: () => {
+        SoundFX.playStarCollect()
+        recordTick(160, true, true) // Synergy boost
+        setActiveBanner(t('crystalBonusBanner'))
+        setTimeout(() => setActiveBanner(null), 3000)
       }
     })
 
@@ -281,6 +292,10 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       // 2. Fetch inputs (Mobile Controller or Desktop Keyboard Fallback)
       const inputs = getLatestInputs()
       const keys = keysRef.current
+
+      // Dynamic ship shapes: controller selection overrides lobby default
+      const effectiveP1Shape: ShipShape = inputs[1]?.sh || player1Shape
+      const effectiveP2Shape: ShipShape = inputs[2]?.sh || player2Shape
 
       // P1 Inputs: WASD fallback
       let p1Steer = inputs[1]?.st ?? 0
@@ -372,19 +387,19 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         }
         Body.applyForce(ship1, ship1.position, force1)
 
-        // Spawn Thruster Exhaust Particles (Cyan)
-        const exhaustX = ship1.position.x - Math.cos(angle1) * (SHIP_RADIUS + 4)
-        const exhaustY = ship1.position.y - Math.sin(angle1) * (SHIP_RADIUS + 4)
-        for (let i = 0; i < 2; i++) {
+        // Spawn Thruster Exhaust Particles (Cyan) - Capped to 35 max to eliminate GC stutter
+        if (particles.length < 35) {
+          const exhaustX = ship1.position.x - Math.cos(angle1) * (SHIP_RADIUS + 4)
+          const exhaustY = ship1.position.y - Math.sin(angle1) * (SHIP_RADIUS + 4)
           particles.push({
-            x: exhaustX + (Math.random() - 0.5) * 6,
-            y: exhaustY + (Math.random() - 0.5) * 6,
-            vx: -Math.cos(angle1) * (2 + Math.random() * 3) + (Math.random() - 0.5),
-            vy: -Math.sin(angle1) * (2 + Math.random() * 3) + (Math.random() - 0.5),
+            x: exhaustX + (Math.random() - 0.5) * 4,
+            y: exhaustY + (Math.random() - 0.5) * 4,
+            vx: -Math.cos(angle1) * (2 + Math.random() * 2),
+            vy: -Math.sin(angle1) * (2 + Math.random() * 2),
             life: 1,
-            maxLife: 0.35 + Math.random() * 0.2,
+            maxLife: 0.28,
             color: '#00F0FF',
-            size: Math.random() * 3.5 + 2
+            size: Math.random() * 3 + 2
           })
         }
       }
@@ -401,19 +416,19 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         }
         Body.applyForce(ship2, ship2.position, force2)
 
-        // Spawn Thruster Exhaust Particles (Pink)
-        const exhaustX2 = ship2.position.x - Math.cos(angle2) * (SHIP_RADIUS + 4)
-        const exhaustY2 = ship2.position.y - Math.sin(angle2) * (SHIP_RADIUS + 4)
-        for (let i = 0; i < 2; i++) {
+        // Spawn Thruster Exhaust Particles (Pink) - Capped to 35 max
+        if (particles.length < 35) {
+          const exhaustX2 = ship2.position.x - Math.cos(angle2) * (SHIP_RADIUS + 4)
+          const exhaustY2 = ship2.position.y - Math.sin(angle2) * (SHIP_RADIUS + 4)
           particles.push({
-            x: exhaustX2 + (Math.random() - 0.5) * 6,
-            y: exhaustY2 + (Math.random() - 0.5) * 6,
-            vx: -Math.cos(angle2) * (2 + Math.random() * 3) + (Math.random() - 0.5),
-            vy: -Math.sin(angle2) * (2 + Math.random() * 3) + (Math.random() - 0.5),
+            x: exhaustX2 + (Math.random() - 0.5) * 4,
+            y: exhaustY2 + (Math.random() - 0.5) * 4,
+            vx: -Math.cos(angle2) * (2 + Math.random() * 2),
+            vy: -Math.sin(angle2) * (2 + Math.random() * 2),
             life: 1,
-            maxLife: 0.35 + Math.random() * 0.2,
+            maxLife: 0.28,
             color: '#FF2A85',
-            size: Math.random() * 3.5 + 2
+            size: Math.random() * 3 + 2
           })
         }
       }
@@ -472,15 +487,18 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         })
       }
 
-      // 7. Update Gravity Vortex Anomaly Field (PRD Section 5.3)
+      // 7. Update Gravity Vortex & Moons Field
       levelManager.updateGravityVortex([ship1, ship2, coreBody])
 
-      // 8. Check if Starlight Core was delivered
+      // 8. Check Collectible Crystals Pickup
+      levelManager.checkCrystals(ship1.position, ship2.position)
+
+      // 9. Check if Starlight Core was delivered
       if (!isStageDone) {
         levelManager.checkCoreDelivery()
       }
 
-      // 9. Step Matter.js Physics Engine
+      // 10. Step Matter.js Physics Engine
       Engine.update(engine, 1000 / 60)
 
       // Calculate Tether Distance & Strain
@@ -555,8 +573,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         setTimeout(() => setActiveBanner(null), 3500)
       }
 
-      // Update Tactical Radar telemetry every 6 frames
-      if (frameCount % 6 === 0) {
+      // Update Tactical Radar telemetry every 12 frames (~5 FPS) for optimal UI performance
+      if (frameCount % 12 === 0) {
         setRadarData({
           ship1: { x: ship1.position.x, y: ship1.position.y, angle: ship1.angle },
           ship2: { x: ship2.position.x, y: ship2.position.y, angle: ship2.angle },
@@ -622,10 +640,16 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         ctx.fill()
       })
 
-      // Render Level Objects: Warp Gate, Asteroids, Laser Gate, Starlight Core, Vortex
-      levelManager.render(ctx, time)
+      // Render Level Objects: Warp Gate, Asteroids, Laser Gate, Starlight Core, Vortex with spatial culling
+      const viewport = {
+        minX: camX - width / 2 - 60,
+        maxX: camX + width / 2 + 60,
+        minY: camY - height / 2 - 60,
+        maxY: camY + height / 2 + 60
+      }
+      levelManager.render(ctx, time, viewport)
 
-      // 11. Render Particles (Thrusters)
+      // 11. Render Particles with fast swap-and-pop removal (O(1) memory cleanup)
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i]
         p.x += p.vx
@@ -633,7 +657,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         p.life -= dt / p.maxLife
 
         if (p.life <= 0) {
-          particles.splice(i, 1)
+          particles[i] = particles[particles.length - 1]
+          particles.pop()
           continue
         }
 
@@ -700,76 +725,18 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       }
       ctx.globalAlpha = 1.0
 
-      // 14. Render Ship 1: Player 1 (Alpha Pod - Neon Cyan)
+      // 14. Render Ship 1: Player 1 (Customized Vector Hull)
       ctx.save()
       ctx.translate(ship1.position.x, ship1.position.y)
       ctx.rotate(ship1.angle)
-
-      // Ship body glow
-      ctx.shadowColor = '#00F0FF'
-      ctx.shadowBlur = 18
-      ctx.fillStyle = '#0B0F19'
-      ctx.strokeStyle = '#00F0FF'
-      ctx.lineWidth = 2.5
-
-      // Futuristically faceted triangle pod
-      ctx.beginPath()
-      ctx.moveTo(SHIP_RADIUS + 4, 0)
-      ctx.lineTo(-SHIP_RADIUS * 0.75, -SHIP_RADIUS * 0.85)
-      ctx.lineTo(-SHIP_RADIUS * 0.45, 0)
-      ctx.lineTo(-SHIP_RADIUS * 0.75, SHIP_RADIUS * 0.85)
-      ctx.closePath()
-      ctx.fill()
-      ctx.stroke()
-
-      // Cockpit dome
-      ctx.fillStyle = '#00F0FF'
-      ctx.beginPath()
-      ctx.arc(SHIP_RADIUS * 0.2, 0, 5, 0, Math.PI * 2)
-      ctx.fill()
-
-      // Tether anchor ring
-      ctx.strokeStyle = '#FFFFFF'
-      ctx.lineWidth = 2
-      ctx.beginPath()
-      ctx.arc(0, 0, 3, 0, Math.PI * 2)
-      ctx.stroke()
+      drawShipHull(ctx, effectiveP1Shape, '#00F0FF', SHIP_RADIUS, time, p1Thrust > 0.1)
       ctx.restore()
 
-      // 15. Render Ship 2: Player 2 (Beta Pod - Neon Pink)
+      // 15. Render Ship 2: Player 2 (Customized Vector Hull)
       ctx.save()
       ctx.translate(ship2.position.x, ship2.position.y)
       ctx.rotate(ship2.angle)
-
-      ctx.shadowColor = '#FF2A85'
-      ctx.shadowBlur = 18
-      ctx.fillStyle = '#0B0F19'
-      ctx.strokeStyle = '#FF2A85'
-      ctx.lineWidth = 2.5
-
-      // Sleek curved aerodynamic pod
-      ctx.beginPath()
-      ctx.moveTo(SHIP_RADIUS + 4, 0)
-      ctx.quadraticCurveTo(-SHIP_RADIUS * 0.3, -SHIP_RADIUS * 0.9, -SHIP_RADIUS * 0.8, -SHIP_RADIUS * 0.5)
-      ctx.lineTo(-SHIP_RADIUS * 0.5, 0)
-      ctx.lineTo(-SHIP_RADIUS * 0.8, SHIP_RADIUS * 0.5)
-      ctx.quadraticCurveTo(-SHIP_RADIUS * 0.3, SHIP_RADIUS * 0.9, SHIP_RADIUS + 4, 0)
-      ctx.closePath()
-      ctx.fill()
-      ctx.stroke()
-
-      // Cockpit dome
-      ctx.fillStyle = '#FF2A85'
-      ctx.beginPath()
-      ctx.arc(SHIP_RADIUS * 0.2, 0, 5, 0, Math.PI * 2)
-      ctx.fill()
-
-      // Tether anchor ring
-      ctx.strokeStyle = '#FFFFFF'
-      ctx.lineWidth = 2
-      ctx.beginPath()
-      ctx.arc(0, 0, 3, 0, Math.PI * 2)
-      ctx.stroke()
+      drawShipHull(ctx, effectiveP2Shape, '#FF2A85', SHIP_RADIUS, time, p2Thrust > 0.1)
       ctx.restore()
 
       ctx.restore() // End Camera translation

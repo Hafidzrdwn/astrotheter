@@ -8,6 +8,8 @@ export type PlayerSlot = 1 | 2
 
 export type HapticIntensity = 'LIGHT' | 'MEDIUM' | 'HEAVY' | 'PULSE'
 
+export type ShipShape = 'dart' | 'manta' | 'ring' | 'saucer' | 'scarab' | 'jelly'
+
 /**
  * High-frequency client to host input payload emitted @ 40Hz
  */
@@ -18,6 +20,7 @@ export interface ControllerInputPayload {
   th: number // Thrust (0.0 idle to 1.0 full)
   re: boolean // Reel / Pull tether active
   bo: boolean // Sync boost trigger
+  sh?: ShipShape // Selected spacecraft customization shape
 }
 
 /**

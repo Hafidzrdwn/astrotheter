@@ -5,6 +5,7 @@ import {
   type PlayerSlot,
   type ControllerInputPayload,
   type HostFeedbackEvent,
+  type ShipShape,
   toHostPeerId,
   RTC_CONFIG
 } from '../types/network'
@@ -14,6 +15,7 @@ export interface ControllerStateInput {
   thrust: number // 0.0 to 1.0
   reel: boolean
   boost: boolean
+  shape?: ShipShape
 }
 
 export interface UseControllerPeerReturn {
@@ -220,18 +222,20 @@ export function useControllerPeer(targetRoomId?: string): UseControllerPeerRetur
       const thrustChanged = !prev || Math.abs(curr.thrust - prev.th) > 0.02
       const reelChanged = !prev || curr.reel !== prev.re
       const boostChanged = !prev || curr.boost !== prev.bo
+      const shapeChanged = !prev || curr.shape !== prev.sh
 
       // Heartbeat: force emit every 800ms even if idle so host knows client is alive
       const heartbeatDue = now - lastEmittedTimeRef.current > 800
 
-      if (steerChanged || thrustChanged || reelChanged || boostChanged || heartbeatDue) {
+      if (steerChanged || thrustChanged || reelChanged || boostChanged || shapeChanged || heartbeatDue) {
         const payload: ControllerInputPayload = {
           t: now,
           p: (playerSlot || 1),
           st: Number(curr.steer.toFixed(3)),
           th: Number(curr.thrust.toFixed(3)),
           re: curr.reel,
-          bo: curr.boost
+          bo: curr.boost,
+          sh: curr.shape
         }
 
         try {

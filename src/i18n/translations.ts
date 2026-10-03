@@ -123,6 +123,29 @@ export interface TranslationDictionary {
   bannerCoreTrapped: string
   bannerLaserOpen: string
   bannerNearWarp: string
+
+  // Exit & Navigation
+  exitBtn: string
+  exitConfirm: string
+
+  // Ship Customizer
+  shipSelectTitle: string
+  shipDartName: string
+  shipDartDesc: string
+  shipMantaName: string
+  shipMantaDesc: string
+  shipRingName: string
+  shipRingDesc: string
+  shipSaucerName: string
+  shipSaucerDesc: string
+  shipScarabName: string
+  shipScarabDesc: string
+  shipJellyName: string
+  shipJellyDesc: string
+
+  // Cosmic Objects & Collectibles
+  crystalBonusBanner: string
+  gravityMoonLabel: string
 }
 
 export const translations: Record<Language, TranslationDictionary> = {
@@ -248,7 +271,30 @@ export const translations: Record<Language, TranslationDictionary> = {
     // Dynamic In-Game Banners
     bannerCoreTrapped: '✨ CORE SECURED! Escort it towards the Warp Gate!',
     bannerLaserOpen: '⚡ LASER BARRIER DISABLED! Path is clear!',
-    bannerNearWarp: '🌀 WARP GATE IN SIGHT! Push the Core into the portal!'
+    bannerNearWarp: '🌀 WARP GATE IN SIGHT! Push the Core into the portal!',
+
+    // Exit & Navigation
+    exitBtn: 'EXIT',
+    exitConfirm: 'Leave this orbital mission and return to lobby?',
+
+    // Ship Customizer
+    shipSelectTitle: 'SPACECRAFT HULL CUSTOMIZER',
+    shipDartName: 'Apex Dart',
+    shipDartDesc: 'Sleek supersonic interceptor with twin energy fins.',
+    shipMantaName: 'Cosmic Manta',
+    shipMantaDesc: 'Aerodynamic bio-curved wings built for orbital drift.',
+    shipRingName: 'Quantum Ring',
+    shipRingDesc: 'Torus ring hull with a floating antimatter core.',
+    shipSaucerName: 'Retro Saucer',
+    shipSaucerDesc: 'Vintage flying saucer with a pulsing neon dome.',
+    shipScarabName: 'Cyber Scarab',
+    shipScarabDesc: 'Industrial mecha fighter with dual plasma pincers.',
+    shipJellyName: 'Star Jelly',
+    shipJellyDesc: 'Mystic crystalline cephalopod with fluid tentacles.',
+
+    // Cosmic Objects & Collectibles
+    crystalBonusBanner: '💎 +5% SYNERGY BONUS! Starlight Crystal Collected!',
+    gravityMoonLabel: 'GRAVITY SLINGSHOT'
   },
 
   id: {
@@ -373,6 +419,29 @@ export const translations: Record<Language, TranslationDictionary> = {
     // Dynamic In-Game Banners
     bannerCoreTrapped: '✨ INTI TERTANGKAP! Kawal menuju Portal Warp Gate!',
     bannerLaserOpen: '⚡ PINTU LASER TERBUKA! Lanjutkan dorong inti ke portal!',
-    bannerNearWarp: '🌀 PORTAL SUDAH DEKAT! Dorong inti masuk ke pusaran!'
+    bannerNearWarp: '🌀 PORTAL SUDAH DEKAT! Dorong inti masuk ke pusaran!',
+
+    // Exit & Navigation
+    exitBtn: 'KELUAR',
+    exitConfirm: 'Yakin ingin keluar dan kembali ke halaman utama?',
+
+    // Ship Customizer
+    shipSelectTitle: 'PILIH BENTUK PESAWAT',
+    shipDartName: 'Apex Dart',
+    shipDartDesc: 'Jet tempur supersonik bersayap tajam lincah.',
+    shipMantaName: 'Cosmic Manta',
+    shipMantaDesc: 'Sayap pari aerodinamis yang mulus meluncur di angkasa.',
+    shipRingName: 'Quantum Ring',
+    shipRingDesc: 'Cincin torus berputar dengan inti antimateri melayang.',
+    shipSaucerName: 'Retro Saucer',
+    shipSaucerDesc: 'Piring terbang retro dengan kubah kaca neon berdenyut.',
+    shipScarabName: 'Cyber Scarab',
+    shipScarabDesc: 'Pesawat mecha robotik bercapit plasma ganda.',
+    shipJellyName: 'Star Jelly',
+    shipJellyDesc: 'Paus kosmik berkristal dengan tentakel energi memukau.',
+
+    // Cosmic Objects & Collectibles
+    crystalBonusBanner: '💎 +5% BONUS SINERGI! Kristal Kosmik Diambil!',
+    gravityMoonLabel: 'BULAN GRAVITASI'
   }
 }

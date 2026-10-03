@@ -5,6 +5,7 @@ import {
   type PlayerSlot,
   type ControllerInputPayload,
   type HostFeedbackEvent,
+  type ClientCommandPayload,
   generateRoomId,
   toHostPeerId,
   fromHostPeerId,
@@ -87,15 +88,49 @@ export function useHostPeer(initialRoomId?: string): UseHostPeerReturn {
     }
   }, [])
 
+  // 1-second Heartbeat tick to keep controllers synced and detect host liveness
+  useEffect(() => {
+    const heartbeatTimer = window.setInterval(() => {
+      broadcastFeedback({
+        e: 'HEARTBEAT',
+        roomId,
+        timestamp: Date.now()
+      })
+    }, 1000)
+
+    const handleBeforeUnload = () => {
+      broadcastFeedback({
+        e: 'ROOM_EXPIRED',
+        message: 'Host window was closed or refreshed'
+      })
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+
+    return () => {
+      window.clearInterval(heartbeatTimer)
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [roomId, broadcastFeedback])
+
   // Fast getter for 60 FPS animation/physics loops
   const getLatestInputs = useCallback(() => {
     return latestInputsRef.current
   }, [])
 
-  // Regenerate a fresh room ID if needed
+  // Regenerate a fresh room ID with instant client notification & clean teardown
   const regenerateRoom = useCallback(() => {
+    broadcastFeedback({
+      e: 'ROOM_EXPIRED',
+      message: 'Host generated a new room code'
+    })
+    try { connP1Ref.current?.close() } catch {}
+    try { connP2Ref.current?.close() } catch {}
+    connP1Ref.current = null
+    connP2Ref.current = null
+    setPlayer1Connected(false)
+    setPlayer2Connected(false)
     setRoomId(generateRoomId())
-  }, [])
+  }, [broadcastFeedback])
 
   useEffect(() => {
     let isMounted = true
@@ -210,12 +245,107 @@ export function useHostPeer(initialRoomId?: string): UseHostPeerReturn {
             console.warn('[HostPeer] Failed to send SLOT_ASSIGNED:', err)
           }
 
-          // Incoming high-frequency input packets (@ 40Hz)
+          // Incoming high-frequency input packets (@ 40Hz) and control commands
           conn.on('data', (raw: unknown) => {
             if (!isMounted || isCleaningUpRef.current) return
             try {
-              const data = (typeof raw === 'string' ? JSON.parse(raw) : raw) as ControllerInputPayload
-              if (data && typeof data === 'object' && 'p' in data) {
+              const data = (typeof raw === 'string' ? JSON.parse(raw) : raw) as
+                | ControllerInputPayload
+                | ClientCommandPayload
+
+              if (!data || typeof data !== 'object') return
+
+              // Control commands (Slot swap / role preference)
+              if ('type' in data) {
+                if (data.type === 'REQUEST_SLOT_SWAP') {
+                  const isP1 = conn === connP1Ref.current
+                  const isP2 = conn === connP2Ref.current
+
+                  if (isP1) {
+                    if (!connP2Ref.current || !connP2Ref.current.open) {
+                      // Slot 2 is vacant -> Move P1 to P2
+                      connP2Ref.current = connP1Ref.current
+                      connP1Ref.current = null
+                      setPlayer1Connected(false)
+                      setPlayer2Connected(true)
+                      latestInputsRef.current[2] = latestInputsRef.current[1]
+                      latestInputsRef.current[1] = null
+                      connP2Ref.current?.send({
+                        e: 'SLOT_ASSIGNED',
+                        slot: 2,
+                        message: 'Swapped to Beta Pod (Pink)'
+                      } as HostFeedbackEvent)
+                    } else {
+                      // Both slots occupied -> Swap both players
+                      const temp = connP1Ref.current
+                      connP1Ref.current = connP2Ref.current
+                      connP2Ref.current = temp
+                      connP1Ref.current?.send({
+                        e: 'SLOT_ASSIGNED',
+                        slot: 1,
+                        message: 'Swapped to Alpha Pod (Cyan)'
+                      } as HostFeedbackEvent)
+                      connP2Ref.current?.send({
+                        e: 'SLOT_ASSIGNED',
+                        slot: 2,
+                        message: 'Swapped to Beta Pod (Pink)'
+                      } as HostFeedbackEvent)
+                    }
+                  } else if (isP2) {
+                    if (!connP1Ref.current || !connP1Ref.current.open) {
+                      // Slot 1 is vacant -> Move P2 to P1
+                      connP1Ref.current = connP2Ref.current
+                      connP2Ref.current = null
+                      setPlayer2Connected(false)
+                      setPlayer1Connected(true)
+                      latestInputsRef.current[1] = latestInputsRef.current[2]
+                      latestInputsRef.current[2] = null
+                      connP1Ref.current?.send({
+                        e: 'SLOT_ASSIGNED',
+                        slot: 1,
+                        message: 'Swapped to Alpha Pod (Cyan)'
+                      } as HostFeedbackEvent)
+                    } else {
+                      // Both slots occupied -> Swap both players
+                      const temp = connP1Ref.current
+                      connP1Ref.current = connP2Ref.current
+                      connP2Ref.current = temp
+                      connP1Ref.current?.send({
+                        e: 'SLOT_ASSIGNED',
+                        slot: 1,
+                        message: 'Swapped to Alpha Pod (Cyan)'
+                      } as HostFeedbackEvent)
+                      connP2Ref.current?.send({
+                        e: 'SLOT_ASSIGNED',
+                        slot: 2,
+                        message: 'Swapped to Beta Pod (Pink)'
+                      } as HostFeedbackEvent)
+                    }
+                  }
+                  return
+                }
+
+                if (data.type === 'PREFER_SLOT' && data.slot === 2) {
+                  // If client preferred slot 2 and slot 2 is currently empty
+                  if (conn === connP1Ref.current && (!connP2Ref.current || !connP2Ref.current.open)) {
+                    connP2Ref.current = connP1Ref.current
+                    connP1Ref.current = null
+                    setPlayer1Connected(false)
+                    setPlayer2Connected(true)
+                    latestInputsRef.current[2] = latestInputsRef.current[1]
+                    latestInputsRef.current[1] = null
+                    connP2Ref.current?.send({
+                      e: 'SLOT_ASSIGNED',
+                      slot: 2,
+                      message: 'Assigned to Beta Pod (Pink)'
+                    } as HostFeedbackEvent)
+                  }
+                  return
+                }
+              }
+
+              // Standard Controller Input Packet
+              if ('p' in data) {
                 const slot = data.p === 2 ? 2 : 1
                 latestInputsRef.current[slot] = data
                 setLatestInputs((prev) => ({

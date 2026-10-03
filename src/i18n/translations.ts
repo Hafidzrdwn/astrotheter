@@ -146,6 +146,34 @@ export interface TranslationDictionary {
   // Cosmic Objects & Collectibles
   crystalBonusBanner: string
   gravityMoonLabel: string
+
+  // Slot Swapping & Pod Roles
+  switchPodBtn: string
+  swapToPink: string
+  swapToCyan: string
+  podAlphaName: string
+  podBetaName: string
+  rolePreferenceLabel: string
+  roleAuto: string
+  roleAlphaDesc: string
+  roleBetaDesc: string
+
+  // Room Expired & Desync
+  roomExpiredTitle: string
+  roomExpiredDesc: string
+  enterNewRoomBtn: string
+  scanAnotherQrBtn: string
+
+  // Mobile Entry Portal
+  mobileEntryTitle: string
+  mobileEntrySubtitle: string
+  roomCodePlaceholder: string
+  joinFlightBtn: string
+  scanQrCameraBtn: string
+  cameraScanning: string
+  cameraPermissionDenied: string
+  closeCameraBtn: string
+  invalidRoomCode: string
 }
 
 export const translations: Record<Language, TranslationDictionary> = {
@@ -294,7 +322,35 @@ export const translations: Record<Language, TranslationDictionary> = {
 
     // Cosmic Objects & Collectibles
     crystalBonusBanner: '💎 +5% SYNERGY BONUS! Starlight Crystal Collected!',
-    gravityMoonLabel: 'GRAVITY SLINGSHOT'
+    gravityMoonLabel: 'GRAVITY SLINGSHOT',
+
+    // Slot Swapping & Pod Roles
+    switchPodBtn: 'SWITCH POD',
+    swapToPink: 'Switch to Beta (Pink)',
+    swapToCyan: 'Switch to Alpha (Cyan)',
+    podAlphaName: 'ALPHA POD (CYAN)',
+    podBetaName: 'BETA POD (PINK)',
+    rolePreferenceLabel: 'Choose Your Pod',
+    roleAuto: 'Auto-Assign',
+    roleAlphaDesc: 'Pilot 1 (Cyan)',
+    roleBetaDesc: 'Pilot 2 (Pink)',
+
+    // Room Expired & Desync
+    roomExpiredTitle: 'ROOM DISCONNECTED',
+    roomExpiredDesc: 'The host has refreshed or changed room sessions. Please re-enter with the active room code.',
+    enterNewRoomBtn: 'Enter New Room',
+    scanAnotherQrBtn: 'Scan QR Again',
+
+    // Mobile Entry Portal
+    mobileEntryTitle: 'JOIN ORBITAL COCKPIT',
+    mobileEntrySubtitle: 'Enter room code from host screen or scan the QR code to fly together!',
+    roomCodePlaceholder: 'e.g. AST1',
+    joinFlightBtn: 'LAUNCH COCKPIT',
+    scanQrCameraBtn: 'SCAN QR CODE',
+    cameraScanning: 'Point camera at Host screen QR code...',
+    cameraPermissionDenied: 'Camera permission denied. Enter code manually below.',
+    closeCameraBtn: 'Cancel Scan',
+    invalidRoomCode: 'Please enter a valid 4-letter room code.'
   },
 
   id: {
@@ -442,6 +498,34 @@ export const translations: Record<Language, TranslationDictionary> = {
 
     // Cosmic Objects & Collectibles
     crystalBonusBanner: '💎 +5% BONUS SINERGI! Kristal Kosmik Diambil!',
-    gravityMoonLabel: 'BULAN GRAVITASI'
+    gravityMoonLabel: 'BULAN GRAVITASI',
+
+    // Slot Swapping & Pod Roles
+    switchPodBtn: 'TUKAR POD',
+    swapToPink: 'Tukar ke Beta (Pink)',
+    swapToCyan: 'Tukar ke Alpha (Biru)',
+    podAlphaName: 'ALPHA POD (BIRU)',
+    podBetaName: 'BETA POD (PINK)',
+    rolePreferenceLabel: 'Pilih Pod / Peran Kamu',
+    roleAuto: 'Otomatis',
+    roleAlphaDesc: 'Pilot 1 (Biru Cyan)',
+    roleBetaDesc: 'Pilot 2 (Pink Cantik)',
+
+    // Room Expired & Desync
+    roomExpiredTitle: 'ROOM TERPUTUS',
+    roomExpiredDesc: 'Host me-refresh atau mengganti sesi room. Silakan masukkan kode room baru yang tampil di layar laptop.',
+    enterNewRoomBtn: 'Masuk Room Baru',
+    scanAnotherQrBtn: 'Scan QR Ulang',
+
+    // Mobile Entry Portal
+    mobileEntryTitle: 'MASUK KOKPIT PESAWAT',
+    mobileEntrySubtitle: 'Ketik 4 huruf kode room dari layar laptop atau scan QR langsung buat meluncur!',
+    roomCodePlaceholder: 'Contoh: AST1',
+    joinFlightBtn: 'LUNCURKAN KOKPIT',
+    scanQrCameraBtn: 'SCAN QR DENGAN KAMERA',
+    cameraScanning: 'Arahkan kamera ke barcode di layar laptop...',
+    cameraPermissionDenied: 'Izin kamera ditolak. Silakan ketik kode room secara manual.',
+    closeCameraBtn: 'Tutup Kamera',
+    invalidRoomCode: 'Masukkan 4 karakter kode room yang valid.'
   }
 }

@@ -27,6 +27,7 @@ export interface UseControllerPeerReturn {
   latestFeedback: HostFeedbackEvent | null
   latencyMs: number
   errorMessage: string | null
+  requestSlotSwap: () => void
   reconnect: () => void
 }
 
@@ -37,7 +38,7 @@ const HAPTIC_PATTERNS = {
   PULSE: [40, 30, 40, 30, 100]
 }
 
-export function useControllerPeer(targetRoomId?: string): UseControllerPeerReturn {
+export function useControllerPeer(targetRoomId?: string, preferredSlot?: PlayerSlot): UseControllerPeerReturn {
   const normalizedRoomId = (targetRoomId || '').trim().toUpperCase()
 
   const [connectionState, setConnectionState] = useState<ConnectionState>('DISCONNECTED')
@@ -45,6 +46,9 @@ export function useControllerPeer(targetRoomId?: string): UseControllerPeerRetur
   const [latestFeedback, setLatestFeedback] = useState<HostFeedbackEvent | null>(null)
   const [latencyMs, setLatencyMs] = useState<number>(0)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  // Track host heartbeat liveness
+  const lastHeartbeatTimeRef = useRef<number>(Date.now())
 
   // Current controller inputs
   const inputStateRef = useRef<ControllerStateInput>({
@@ -134,8 +138,16 @@ export function useControllerPeer(targetRoomId?: string): UseControllerPeerRetur
       conn.on('open', () => {
         if (isCleaningUpRef.current) return
         console.log(`[ControllerPeer] Connected to Host: ${hostPeerId}`)
+        lastHeartbeatTimeRef.current = Date.now()
         setConnectionState('CONNECTED')
         setErrorMessage(null)
+
+        // If client joined with preferred slot, request it during handshake
+        if (preferredSlot) {
+          try {
+            conn.send({ type: 'PREFER_SLOT', slot: preferredSlot })
+          } catch {}
+        }
       })
 
       conn.on('data', (raw: unknown) => {
@@ -144,6 +156,24 @@ export function useControllerPeer(targetRoomId?: string): UseControllerPeerRetur
           const event = (typeof raw === 'string' ? JSON.parse(raw) : raw) as HostFeedbackEvent
           if (event && event.e) {
             setLatestFeedback(event)
+
+            if (event.e === 'HEARTBEAT') {
+              lastHeartbeatTimeRef.current = Date.now()
+              if (event.roomId && event.roomId !== normalizedRoomId) {
+                console.warn(`[ControllerPeer] Host room changed (${event.roomId} vs ${normalizedRoomId}). Expiring session.`)
+                setConnectionState('ROOM_EXPIRED')
+                setErrorMessage('Host session refreshed or changed room code.')
+                try { conn.close() } catch {}
+              }
+              return
+            }
+
+            if (event.e === 'ROOM_EXPIRED') {
+              setConnectionState('ROOM_EXPIRED')
+              setErrorMessage(event.message || 'Host room expired or host closed.')
+              try { conn.close() } catch {}
+              return
+            }
 
             if (event.e === 'SLOT_ASSIGNED' && event.slot) {
               setPlayerSlot(event.slot)
@@ -295,6 +325,37 @@ export function useControllerPeer(targetRoomId?: string): UseControllerPeerRetur
     }
   }, [normalizedRoomId, connectToHost])
 
+  // Live slot swap request
+  const requestSlotSwap = useCallback(() => {
+    const conn = connRef.current
+    if (conn && conn.open) {
+      try {
+        conn.send({ type: 'REQUEST_SLOT_SWAP' })
+      } catch (err) {
+        console.warn('[ControllerPeer] Failed to send slot swap request:', err)
+      }
+    }
+  }, [])
+
+  // Heartbeat watchdog: if no heartbeat received for >4s, mark session as ROOM_EXPIRED
+  useEffect(() => {
+    if (connectionState !== 'CONNECTED') return
+    lastHeartbeatTimeRef.current = Date.now()
+
+    const watchdogTimer = window.setInterval(() => {
+      if (Date.now() - lastHeartbeatTimeRef.current > 4000) {
+        console.warn('[ControllerPeer] Host heartbeat timed out (>4s). Marking ROOM_EXPIRED.')
+        setConnectionState('ROOM_EXPIRED')
+        setErrorMessage('Host session ended or room refreshed.')
+        if (connRef.current) {
+          try { connRef.current.close() } catch {}
+        }
+      }
+    }, 1000)
+
+    return () => window.clearInterval(watchdogTimer)
+  }, [connectionState])
+
   return {
     connectionState,
     playerSlot,
@@ -304,6 +365,7 @@ export function useControllerPeer(targetRoomId?: string): UseControllerPeerRetur
     latestFeedback,
     latencyMs,
     errorMessage,
+    requestSlotSwap,
     reconnect: connectToHost
   }
 }

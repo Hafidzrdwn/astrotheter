@@ -2,7 +2,7 @@
  * Network Protocol Types & Wire Contracts based on /docs/PRD.md Section 4
  */
 
-export type ConnectionState = 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED' | 'ROOM_FULL'
+export type ConnectionState = 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED' | 'ROOM_FULL' | 'ROOM_EXPIRED'
 
 export type PlayerSlot = 1 | 2
 
@@ -24,6 +24,13 @@ export interface ControllerInputPayload {
 }
 
 /**
+ * Control commands sent from client to host
+ */
+export type ClientCommandPayload =
+  | { type: 'REQUEST_SLOT_SWAP' }
+  | { type: 'PREFER_SLOT'; slot: PlayerSlot }
+
+/**
  * Low-frequency host to client feedback event payload
  */
 export interface HostFeedbackEvent {
@@ -36,11 +43,15 @@ export interface HostFeedbackEvent {
     | 'SUCCESS'
     | 'ROOM_FULL'
     | 'PING'
+    | 'HEARTBEAT'
+    | 'ROOM_EXPIRED'
   intensity?: HapticIntensity
   target?: 1 | 2 | 0 // 0 = both players
   score?: number
   slot?: PlayerSlot
   message?: string
+  roomId?: string
+  timestamp?: number
 }
 
 /**

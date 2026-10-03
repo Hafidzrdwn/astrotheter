@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams, useNavigate, Navigate } from 'react-router-dom'
 import {
   Flame,
   Crosshair,
@@ -22,14 +22,23 @@ import { AstroLogo } from '../components/AstroLogo'
 import { LanguageSelector } from '../components/LanguageSelector'
 import { ShipPreview } from '../components/ShipPreview'
 import { ALL_SHIP_SHAPES } from '../utils/shipRenderers'
-import { type ShipShape } from '../types/network'
+import { type ShipShape, type PlayerSlot } from '../types/network'
 
 export const ControllerView: React.FC = () => {
   const { t } = useLanguage()
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const targetRoom = searchParams.get('room') || 'AST1'
+  const targetRoom = searchParams.get('room')
+  const preferredSlotParam = Number(searchParams.get('slot'))
+  const preferredSlot: PlayerSlot | undefined =
+    preferredSlotParam === 1 || preferredSlotParam === 2 ? preferredSlotParam : undefined
 
-  // WebRTC DataChannel networking hook
+  // If accessed without a room code, redirect to dedicated mobile room entry portal
+  if (!targetRoom) {
+    return <Navigate to="/join" replace />
+  }
+
+  // WebRTC DataChannel networking hook with liveness heartbeat & slot preference
   const {
     connectionState,
     playerSlot,
@@ -38,8 +47,9 @@ export const ControllerView: React.FC = () => {
     latestFeedback,
     latencyMs,
     errorMessage,
+    requestSlotSwap,
     reconnect
-  } = useControllerPeer(targetRoom)
+  } = useControllerPeer(targetRoom, preferredSlot)
 
   // Gyroscope / Device orientation sensor hook
   const {
@@ -88,7 +98,7 @@ export const ControllerView: React.FC = () => {
 
   const handleExit = () => {
     if (window.confirm(t('exitConfirm'))) {
-      window.location.href = '/'
+      navigate('/join')
     }
   }
 
@@ -223,7 +233,7 @@ export const ControllerView: React.FC = () => {
   // Room Full view
   if (connectionState === 'ROOM_FULL') {
     return (
-      <div className="fixed inset-0 h-[100dvh] w-screen bg-[#0B0F19] text-gray-100 flex flex-col items-center justify-center p-6 text-center select-none touch-none">
+      <div className="min-h-screen w-full bg-[#0B0F19] text-gray-100 flex flex-col items-center justify-center p-6 text-center select-none overflow-y-auto">
         <div className="flex h-20 w-20 items-center justify-center rounded-3xl border border-red-500/40 bg-red-500/10 shadow-[0_0_35px_rgba(255,42,133,0.3)] mb-6">
           <WarningCircle size={44} className="text-[#FF2A85]" />
         </div>
@@ -233,12 +243,21 @@ export const ControllerView: React.FC = () => {
         <p className="text-xs text-gray-400 max-w-xs mb-6">
           Room <span className="text-[#FFE600] font-bold font-mono">{roomId}</span> already has two connected pilots. Please create or join a new room.
         </p>
-        <Link
-          to="/host"
-          className="rounded-xl border border-white/20 bg-white/10 px-6 py-3 font-['Orbitron'] text-xs font-bold text-white hover:bg-white/20 transition"
-        >
-          HOST A NEW GAME
-        </Link>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <button
+            type="button"
+            onClick={() => navigate('/join')}
+            className="rounded-xl bg-gradient-to-r from-[#00F0FF] to-[#0099FF] text-black px-6 py-3 font-['Orbitron'] text-xs font-black hover:brightness-110 active:scale-95 transition"
+          >
+            JOIN ANOTHER ROOM
+          </button>
+          <Link
+            to="/host"
+            className="rounded-xl border border-white/20 bg-white/10 px-6 py-3 font-['Orbitron'] text-xs font-bold text-white hover:bg-white/20 transition"
+          >
+            HOST A NEW GAME
+          </Link>
+        </div>
       </div>
     )
   }
@@ -246,7 +265,7 @@ export const ControllerView: React.FC = () => {
   // Connecting view
   if (connectionState === 'CONNECTING') {
     return (
-      <div className="fixed inset-0 h-[100dvh] w-screen bg-[#0B0F19] text-gray-100 flex flex-col items-center justify-center p-6 text-center select-none touch-none">
+      <div className="min-h-screen w-full bg-[#0B0F19] text-gray-100 flex flex-col items-center justify-center p-6 text-center select-none overflow-y-auto">
         <div className="relative mb-6">
           <AstroLogo size={64} />
           <div className="absolute inset-0 rounded-full border border-[#00F0FF] animate-ping opacity-30" />
@@ -258,91 +277,129 @@ export const ControllerView: React.FC = () => {
           {t('roomLabel')}: <span className="text-[#FFE600] font-bold">{roomId}</span>
         </p>
         <LanguageSelector className="mt-2" />
+        <button
+          type="button"
+          onClick={() => navigate('/join')}
+          className="mt-6 text-xs text-gray-500 hover:text-gray-300 underline font-mono"
+        >
+          Cancel & Return to Join Screen
+        </button>
       </div>
     )
   }
 
   return (
-    <div className="fixed inset-0 h-[100dvh] w-screen bg-[#0B0F19] text-gray-100 flex flex-col justify-between p-3 select-none touch-none overflow-hidden overscroll-none">
+    <div className="min-h-screen w-full bg-[#0B0F19] text-gray-100 flex flex-col justify-between p-3 select-none overflow-y-auto overscroll-contain landscape:py-2">
       {/* Background ambient lighting */}
       <div
-        className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 h-64 w-64 rounded-full blur-[100px] transition-colors duration-500"
+        className="pointer-events-none fixed -top-24 left-1/2 -translate-x-1/2 h-64 w-64 rounded-full blur-[100px] transition-colors duration-500"
         style={{ backgroundColor: `${themeColor}25` }}
       />
 
-      {/* Top Header Bar */}
-      <header className="relative z-10 flex items-center justify-between border-b border-white/10 pb-2.5 gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <AstroLogo size={28} />
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
+      {/* Top Header Bar - Structured 2 Rows to Prevent Overlapping */}
+      <header className="relative z-10 space-y-2 border-b border-white/10 pb-2.5">
+        {/* Row 1: Brand & Key Navigation Actions */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <AstroLogo size={28} />
+            <div className="flex items-center gap-2">
               <span className="font-['Orbitron'] text-xs font-black tracking-wider text-white">
                 ASTRO<span style={{ color: themeColor }}>TETHER</span>
               </span>
-              <span
-                className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border"
-                style={{ borderColor: `${themeColor}40`, backgroundColor: `${themeColor}15`, color: themeColor }}
-              >
-                {isP1 ? 'P1 ALPHA' : 'P2 BETA'}
+              <span className="font-mono text-[11px] font-bold text-[#FFE600] bg-black/40 px-2 py-0.5 rounded-lg border border-white/10">
+                {roomId}
               </span>
             </div>
-            <p className="text-[10px] text-gray-400 font-mono truncate">{roomId}</p>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <LanguageSelector showIcon={false} />
+            <button
+              type="button"
+              onClick={handleExit}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-red-500/40 bg-red-500/15 text-red-400 hover:bg-red-500/25 active:scale-95 transition"
+              title={t('exitBtn')}
+            >
+              <SignOut size={14} weight="bold" />
+              <span className="text-[10px] font-bold font-mono">{t('exitBtn')}</span>
+            </button>
           </div>
         </div>
 
-        {/* Status Indicators, Language Selector, and Exit Button */}
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          <LanguageSelector showIcon={false} />
+        {/* Row 2: Role Pod Badge, Live Swap Button, & Telemetry */}
+        <div className="flex items-center justify-between gap-2 pt-0.5">
+          <div className="flex items-center gap-2">
+            <span
+              className="px-2.5 py-1 rounded-xl text-[10px] font-['Orbitron'] font-black tracking-wider border flex items-center gap-1.5 shadow-sm"
+              style={{
+                borderColor: `${themeColor}60`,
+                backgroundColor: `${themeColor}20`,
+                color: themeColor
+              }}
+            >
+              <span
+                className="h-2 w-2 rounded-full animate-ping"
+                style={{ backgroundColor: themeColor }}
+              />
+              {isP1 ? t('podAlphaName') : t('podBetaName')}
+            </span>
 
-          <button
-            type="button"
-            onClick={() => setHapticEnabled(!hapticEnabled)}
-            className={`p-1.5 rounded-lg border border-white/10 transition ${
-              hapticEnabled ? 'bg-white/10 text-[#FFE600]' : 'bg-transparent text-gray-600'
-            }`}
-            title="Toggle Vibration"
-          >
-            <Vibrate size={15} />
-          </button>
-
-          <div className="flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-1 text-[9px] font-bold text-emerald-400">
-            <WifiHigh size={12} />
-            <span>{latencyMs > 0 ? `${latencyMs}ms` : '40Hz'}</span>
+            {/* Live Pod / Role Swap Button */}
+            <button
+              type="button"
+              onClick={() => {
+                requestSlotSwap()
+                triggerTouchHaptic(25)
+              }}
+              className="flex items-center gap-1 px-2 py-1 rounded-xl border border-white/20 bg-white/10 text-[10px] font-['Orbitron'] font-bold text-gray-200 hover:bg-white/20 hover:text-white active:scale-95 transition"
+              title={isP1 ? t('swapToPink') : t('swapToCyan')}
+            >
+              <ArrowsLeftRight size={13} className="text-[#FFE600]" />
+              <span>{t('switchPodBtn')}</span>
+            </button>
           </div>
 
-          <button
-            type="button"
-            onClick={handleExit}
-            className="flex items-center gap-1 px-2 py-1 rounded-lg border border-red-500/40 bg-red-500/15 text-red-400 hover:bg-red-500/25 active:scale-95 transition"
-            title={t('exitBtn')}
-          >
-            <SignOut size={15} weight="bold" />
-            <span className="text-[10px] font-bold font-mono">{t('exitBtn')}</span>
-          </button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setHapticEnabled(!hapticEnabled)}
+              className={`p-1.5 rounded-lg border border-white/10 transition ${
+                hapticEnabled ? 'bg-white/10 text-[#FFE600]' : 'bg-transparent text-gray-600'
+              }`}
+              title="Toggle Vibration"
+            >
+              <Vibrate size={15} />
+            </button>
+
+            <div className="flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[9px] font-bold text-emerald-400 font-mono">
+              <WifiHigh size={12} />
+              <span>{latencyMs > 0 ? `${latencyMs}ms` : '40Hz'}</span>
+            </div>
+          </div>
         </div>
       </header>
 
       {/* Interactive Ship Hull Customizer Carousel */}
-      <div className="relative z-10 my-2 px-3 py-2 rounded-2xl border border-white/10 bg-[#060911]/90 backdrop-blur-md flex items-center justify-between shadow-xl">
+      <div className="relative z-10 my-2 px-3 py-2 rounded-2xl border border-white/10 bg-[#060911]/90 backdrop-blur-md flex items-center justify-between shadow-xl gap-2">
         <button
           type="button"
           onClick={handlePrevShape}
-          className="p-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:text-white active:scale-90 transition"
+          className="p-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:text-white active:scale-90 transition shrink-0"
           title="Previous Ship"
         >
           <CaretLeft size={18} weight="bold" />
         </button>
 
-        <div className="flex items-center gap-3 min-w-0">
-          <ShipPreview shape={selectedShape} color={themeColor} size={48} />
-          <div className="min-w-0">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <ShipPreview shape={selectedShape} color={themeColor} size={44} />
+          <div className="min-w-0 flex-1">
             <div className="text-[9px] font-mono text-gray-400 font-bold uppercase tracking-wider">
               {t('shipSelectTitle')}
             </div>
             <div className="font-['Orbitron'] text-xs font-black truncate" style={{ color: themeColor }}>
               {getShipName(selectedShape)}
             </div>
-            <p className="text-[10px] text-gray-400 font-['Space_Grotesk'] truncate">
+            <p className="text-[10px] text-gray-400 font-['Space_Grotesk'] line-clamp-2 leading-tight">
               {getShipDesc(selectedShape)}
             </p>
           </div>
@@ -351,12 +408,45 @@ export const ControllerView: React.FC = () => {
         <button
           type="button"
           onClick={handleNextShape}
-          className="p-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:text-white active:scale-90 transition"
+          className="p-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:text-white active:scale-90 transition shrink-0"
           title="Next Ship"
         >
           <CaretRight size={18} weight="bold" />
         </button>
       </div>
+
+      {/* Room Expired / Host Refreshed Modal Overlay */}
+      {connectionState === 'ROOM_EXPIRED' && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-center">
+          <div className="rounded-3xl border border-red-500/30 bg-[#0B0F19] p-6 max-w-sm w-full space-y-4 shadow-2xl">
+            <div className="h-14 w-14 rounded-2xl bg-red-500/20 text-red-400 border border-red-500/40 flex items-center justify-center mx-auto">
+              <WarningCircle size={32} weight="bold" />
+            </div>
+            <h2 className="font-['Orbitron'] text-lg font-black text-white">
+              {t('roomExpiredTitle')}
+            </h2>
+            <p className="text-xs text-gray-400 font-['Space_Grotesk'] leading-relaxed">
+              {errorMessage || t('roomExpiredDesc')}
+            </p>
+            <div className="space-y-2 pt-2">
+              <button
+                type="button"
+                onClick={() => navigate('/join')}
+                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-[#00F0FF] to-[#0099FF] text-black font-['Orbitron'] text-xs font-black tracking-wider hover:brightness-110 active:scale-95 transition"
+              >
+                {t('enterNewRoomBtn')}
+              </button>
+              <button
+                type="button"
+                onClick={reconnect}
+                className="w-full py-2.5 px-4 rounded-xl border border-white/20 bg-white/5 text-gray-300 font-['Orbitron'] text-xs font-bold hover:bg-white/10 active:scale-95 transition"
+              >
+                {t('returnToLobbyBtn')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Disconnect Alert if connection lost */}
       {connectionState === 'DISCONNECTED' && (

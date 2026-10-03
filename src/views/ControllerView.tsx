@@ -6,7 +6,6 @@ import {
   Vibrate,
   WifiHigh,
   Desktop,
-  RocketLaunch,
   WarningCircle,
   ArrowsClockwise,
   Lightning,
@@ -16,8 +15,12 @@ import {
 } from '@phosphor-icons/react'
 import { useControllerPeer } from '../hooks/useControllerPeer'
 import { useDeviceOrientation } from '../hooks/useDeviceOrientation'
+import { useLanguage } from '../context/LanguageContext'
+import { AstroLogo } from '../components/AstroLogo'
+import { LanguageSelector } from '../components/LanguageSelector'
 
 export const ControllerView: React.FC = () => {
+  const { t } = useLanguage()
   const [searchParams] = useSearchParams()
   const targetRoom = searchParams.get('room') || 'AST1'
 
@@ -27,7 +30,6 @@ export const ControllerView: React.FC = () => {
     playerSlot,
     roomId,
     setInputState,
-    currentInputState,
     latestFeedback,
     latencyMs,
     errorMessage,
@@ -63,7 +65,7 @@ export const ControllerView: React.FC = () => {
   const themeColor = isP1 ? '#00F0FF' : '#FF2A85'
 
   // Micro haptic pulse on interactions
-  const triggerTouchHaptic = useCallback((duration = 20) => {
+  const triggerTouchHaptic = useCallback((duration: number | number[] = 20) => {
     if (hapticEnabled && typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       try {
         navigator.vibrate(duration)
@@ -106,19 +108,18 @@ export const ControllerView: React.FC = () => {
     } catch {}
     // Spring back to 0
     setThrustPercent(0)
-    triggerTouchHaptic(15)
   }
 
   const updateThrustFromPointer = (clientY: number) => {
     if (!thrustTrackRef.current) return
     const rect = thrustTrackRef.current.getBoundingClientRect()
-    // 0% at bottom, 100% at top
-    const relativeY = rect.bottom - clientY
-    const fraction = Math.max(0, Math.min(1, relativeY / rect.height))
-    setThrustPercent(Math.round(fraction * 100))
+    // Calculate inverted progress (top = 100%, bottom = 0%)
+    const rawRatio = (rect.bottom - clientY) / rect.height
+    const clamped = Math.max(0, Math.min(100, Math.round(rawRatio * 100)))
+    setThrustPercent(clamped)
   }
 
-  // --- Horizontal Spring-Slider for Fallback Touch Steer (-1.0 to +1.0, springs to 0 on release) ---
+  // --- Horizontal Touch Fallback Steer Slider (-1.0 to +1.0, springs back to 0) ---
   const handleSteerPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.currentTarget.setPointerCapture(e.pointerId)
     triggerTouchHaptic(20)
@@ -135,31 +136,20 @@ export const ControllerView: React.FC = () => {
     try {
       e.currentTarget.releasePointerCapture(e.pointerId)
     } catch {}
-    // Spring back to center
-    setTouchSteer(0)
-    triggerTouchHaptic(15)
+    setTouchSteer(0) // Springs back to dead center
   }
 
   const updateSteerFromPointer = (clientX: number) => {
     if (!steerTrackRef.current) return
     const rect = steerTrackRef.current.getBoundingClientRect()
     const centerX = rect.left + rect.width / 2
-    const diff = clientX - centerX
-    const halfWidth = rect.width / 2
-    const normalized = Math.max(-1, Math.min(1, diff / halfWidth))
-    setTouchSteer(Number(normalized.toFixed(3)))
+    const offset = clientX - centerX
+    const maxOffset = rect.width / 2
+    const normalized = Math.max(-1.0, Math.min(1.0, offset / maxOffset))
+    setTouchSteer(Number(normalized.toFixed(2)))
   }
 
-  // --- Action Button Handlers ---
-  const handleDashDown = () => {
-    setIsDashing(true)
-    triggerTouchHaptic(35)
-  }
-
-  const handleDashUp = () => {
-    setIsDashing(false)
-  }
-
+  // Reel button touch handler
   const handleReelDown = () => {
     setIsReeling(true)
     triggerTouchHaptic(40)
@@ -169,35 +159,35 @@ export const ControllerView: React.FC = () => {
     setIsReeling(false)
   }
 
-  // Room full view
+  // Dash button touch handler
+  const handleDashDown = () => {
+    setIsDashing(true)
+    triggerTouchHaptic([30, 20, 30])
+  }
+
+  const handleDashUp = () => {
+    setIsDashing(false)
+  }
+
+  // Room Full view
   if (connectionState === 'ROOM_FULL') {
     return (
       <div className="fixed inset-0 h-[100dvh] w-screen bg-[#0B0F19] text-gray-100 flex flex-col items-center justify-center p-6 text-center select-none touch-none">
-        <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-[#FF2A85]/20 text-[#FF2A85] border border-[#FF2A85]/40 shadow-[0_0_30px_rgba(255,42,133,0.5)] mb-6">
-          <WarningCircle size={48} weight="fill" />
+        <div className="flex h-20 w-20 items-center justify-center rounded-3xl border border-red-500/40 bg-red-500/10 shadow-[0_0_35px_rgba(255,42,133,0.3)] mb-6">
+          <WarningCircle size={44} className="text-[#FF2A85]" />
         </div>
         <h2 className="font-['Orbitron'] text-xl font-black text-white tracking-wider mb-2">
-          ROOM IS FULL
+          ROOM ALREADY FULL
         </h2>
-        <p className="text-sm text-gray-400 max-w-xs mb-6">
-          Room <span className="font-mono text-[#FFE600] font-bold">{roomId}</span> already has 2 active controllers (P1 & P2).
+        <p className="text-xs text-gray-400 max-w-xs mb-6">
+          Room <span className="text-[#FFE600] font-bold font-mono">{roomId}</span> already has two connected pilots. Please create or join a new room.
         </p>
-        <div className="flex flex-col gap-3 w-full max-w-xs">
-          <button
-            type="button"
-            onClick={reconnect}
-            className="w-full py-3 rounded-xl bg-white/10 text-white font-['Orbitron'] text-xs font-bold hover:bg-white/20 transition flex items-center justify-center gap-2"
-          >
-            <ArrowsClockwise size={16} />
-            RETRY CONNECTION
-          </button>
-          <Link
-            to="/host"
-            className="w-full py-3 rounded-xl border border-[#00F0FF]/30 bg-[#00F0FF]/10 text-[#00F0FF] font-['Orbitron'] text-xs font-bold text-center hover:bg-[#00F0FF]/20 transition"
-          >
-            OPEN DESKTOP HOST
-          </Link>
-        </div>
+        <Link
+          to="/host"
+          className="rounded-xl border border-white/20 bg-white/10 px-6 py-3 font-['Orbitron'] text-xs font-bold text-white hover:bg-white/20 transition"
+        >
+          HOST A NEW GAME
+        </Link>
       </div>
     )
   }
@@ -206,19 +196,17 @@ export const ControllerView: React.FC = () => {
   if (connectionState === 'CONNECTING') {
     return (
       <div className="fixed inset-0 h-[100dvh] w-screen bg-[#0B0F19] text-gray-100 flex flex-col items-center justify-center p-6 text-center select-none touch-none">
-        <div className="relative flex h-24 w-24 items-center justify-center rounded-full border border-[#00F0FF]/40 bg-[#00F0FF]/10 shadow-[0_0_35px_rgba(0,240,255,0.4)] mb-6">
-          <RocketLaunch size={40} className="text-[#00F0FF] animate-pulse" />
+        <div className="relative mb-6">
+          <AstroLogo size={64} />
           <div className="absolute inset-0 rounded-full border border-[#00F0FF] animate-ping opacity-30" />
         </div>
         <h2 className="font-['Orbitron'] text-base font-bold text-white tracking-wider mb-1">
-          PAIRING TO HOST
+          {t('connectingToHost')}
         </h2>
         <p className="text-xs text-gray-400 font-mono mb-4">
-          TARGET ROOM: <span className="text-[#FFE600] font-bold">{roomId}</span>
+          {t('roomLabel')}: <span className="text-[#FFE600] font-bold">{roomId}</span>
         </p>
-        <p className="text-xs text-gray-500 max-w-xs">
-          Negotiating low-latency P2P DataChannel...
-        </p>
+        <LanguageSelector className="mt-2" />
       </div>
     )
   }
@@ -234,21 +222,12 @@ export const ControllerView: React.FC = () => {
       {/* Top Header Bar */}
       <header className="relative z-10 flex items-center justify-between border-b border-white/10 pb-2">
         <div className="flex items-center gap-2">
-          <div
-            className="flex h-9 w-9 items-center justify-center rounded-lg border transition-colors"
-            style={{
-              borderColor: `${themeColor}60`,
-              backgroundColor: `${themeColor}20`,
-              boxShadow: `0 0 15px ${themeColor}40`
-            }}
-          >
-            <RocketLaunch size={20} weight="fill" style={{ color: themeColor }} />
-          </div>
+          <AstroLogo size={32} />
           <div>
             <h1 className="font-['Orbitron'] text-xs font-black tracking-wider text-white">
               ASTRO<span style={{ color: themeColor }}>TETHER</span>
             </h1>
-            <p className="text-[10px] text-gray-400 font-mono">ROOM: {roomId}</p>
+            <p className="text-[10px] text-gray-400 font-mono">{roomId}</p>
           </div>
         </div>
 
@@ -263,17 +242,19 @@ export const ControllerView: React.FC = () => {
           </span>
         </div>
 
-        {/* Status Indicators & Toggles */}
-        <div className="flex items-center gap-2">
+        {/* Status Indicators & Language Selector */}
+        <div className="flex items-center gap-1.5">
+          <LanguageSelector showIcon={false} />
+
           <button
             type="button"
             onClick={() => setHapticEnabled(!hapticEnabled)}
             className={`p-1.5 rounded-lg border border-white/10 transition ${
               hapticEnabled ? 'bg-white/10 text-[#FFE600]' : 'bg-transparent text-gray-600'
             }`}
-            title="Toggle Haptic Feedback"
+            title="Toggle Vibration"
           >
-            <Vibrate size={18} />
+            <Vibrate size={16} />
           </button>
 
           <div className="flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-400">
@@ -284,9 +265,9 @@ export const ControllerView: React.FC = () => {
           <Link
             to="/host"
             className="p-1.5 rounded-lg border border-white/10 bg-white/5 text-gray-400 hover:text-white"
-            title="Desktop Host Screen"
+            title="Desktop Host"
           >
-            <Desktop size={16} />
+            <Desktop size={15} />
           </Link>
         </div>
       </header>
@@ -311,14 +292,14 @@ export const ControllerView: React.FC = () => {
         <div className="relative z-10 my-1 flex items-center justify-between rounded-xl border border-[#FFE600]/40 bg-[#FFE600]/10 p-2 text-xs">
           <div className="flex items-center gap-2 text-[#FFE600] font-['Rajdhani'] font-bold">
             <Compass size={18} className="animate-spin" />
-            <span>SAFARI IOS: GYRO REQUIRED FOR TILT STEERING</span>
+            <span>{t('gyroRequestTitle')}</span>
           </div>
           <button
             type="button"
             onClick={requestGyroPermission}
             className="rounded-lg bg-[#FFE600] px-3 py-1 font-['Orbitron'] text-[11px] font-black text-black shadow-[0_0_12px_rgba(255,230,0,0.6)] active:scale-95 transition"
           >
-            ENABLE GYRO
+            {t('enableMotionBtn')}
           </button>
         </div>
       )}
@@ -330,15 +311,15 @@ export const ControllerView: React.FC = () => {
           onPointerDown={handleDashDown}
           onPointerUp={handleDashUp}
           onPointerCancel={handleDashUp}
-          className={`w-full max-w-xs py-3 px-6 rounded-2xl border flex items-center justify-center gap-3 transition-all duration-150 active:scale-95 ${
+          className={`w-full max-w-xs py-2.5 px-6 rounded-2xl border flex items-center justify-center gap-3 transition-all duration-150 active:scale-95 ${
             isDashing
               ? 'border-[#FFE600] bg-[#FFE600] text-black shadow-[0_0_30px_rgba(255,230,0,0.9)] scale-95'
               : 'border-[#FFE600]/50 bg-[#FFE600]/15 text-[#FFE600] shadow-[0_0_15px_rgba(255,230,0,0.3)]'
           }`}
         >
-          <Lightning size={22} weight="fill" className={isDashing ? 'animate-bounce' : ''} />
+          <Lightning size={20} weight="fill" className={isDashing ? 'animate-bounce' : ''} />
           <span className="font-['Orbitron'] text-xs font-black tracking-widest">
-            {isDashing ? 'SYNC DASH ENGAGED!' : 'SYNC DASH (BOOST)'}
+            {isDashing ? 'BOOSTING!' : t('syncDashBtn')}
           </span>
         </button>
       </div>
@@ -350,7 +331,7 @@ export const ControllerView: React.FC = () => {
           <div className="flex items-center gap-1.5 mb-1.5">
             <Flame size={16} weight="fill" className="text-[#FF2A85]" />
             <span className="text-[10px] font-['Orbitron'] font-bold tracking-wider text-gray-300">
-              THRUST
+              {t('thrustLabel')}
             </span>
           </div>
 
@@ -361,7 +342,7 @@ export const ControllerView: React.FC = () => {
             onPointerMove={handleThrustPointerMove}
             onPointerUp={handleThrustPointerUp}
             onPointerCancel={handleThrustPointerUp}
-            className="relative w-20 h-52 rounded-2xl border border-white/20 bg-black/60 p-1.5 flex flex-col justify-end overflow-hidden shadow-2xl backdrop-blur-md active:border-[#00F0FF]/60 cursor-pointer"
+            className="relative w-20 h-48 rounded-2xl border border-white/20 bg-black/60 p-1.5 flex flex-col justify-end overflow-hidden shadow-2xl backdrop-blur-md active:border-[#00F0FF]/60 cursor-pointer"
           >
             {/* Level Fill Indicator */}
             <div
@@ -393,7 +374,7 @@ export const ControllerView: React.FC = () => {
               <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center p-2">
                 <HandPointing size={20} className="text-gray-400 animate-bounce mb-1" />
                 <span className="text-[9px] font-['Rajdhani'] font-bold text-gray-400">
-                  SLIDE UP
+                  {t('thrustSliderLabel')}
                 </span>
               </div>
             )}
@@ -410,10 +391,10 @@ export const ControllerView: React.FC = () => {
           <button
             type="button"
             onClick={() => setUseManualSteer(!useManualSteer)}
-            className="flex items-center gap-1 mb-2 px-2 py-0.5 rounded-full border border-white/10 bg-white/5 text-[9px] font-['Orbitron'] font-bold text-gray-300 hover:text-white transition"
+            className="flex items-center gap-1 mb-2 px-2.5 py-1 rounded-full border border-white/10 bg-white/5 text-[9px] font-['Orbitron'] font-bold text-gray-300 hover:text-white transition"
           >
             <Compass size={12} className={isGyroActive ? 'text-[#00F0FF]' : 'text-gray-500'} />
-            <span>{isGyroActive ? 'GYRO TILT' : 'TOUCH SLIDER'}</span>
+            <span>{isGyroActive ? 'GYRO' : 'TOUCH'}</span>
           </button>
 
           {/* If Gyro is Active: Show Neon Artificial Horizon */}
@@ -445,8 +426,8 @@ export const ControllerView: React.FC = () => {
                 />
               </div>
 
-              <div className="mt-1 flex items-center justify-between w-full text-[10px] font-['Rajdhani'] font-bold text-gray-400">
-                <span>STEER: {activeSteer.toFixed(2)}</span>
+              <div className="mt-1.5 flex items-center justify-between w-full text-[10px] font-['Rajdhani'] font-bold text-gray-400">
+                <span>{activeSteer.toFixed(2)}</span>
                 <button
                   type="button"
                   onClick={calibrateGyro}
@@ -460,7 +441,7 @@ export const ControllerView: React.FC = () => {
             /* Fallback Horizontal Spring-Slider */
             <div className="w-full flex flex-col items-center justify-center">
               <span className="text-[9px] font-['Orbitron'] font-bold text-gray-400 mb-1">
-                TOUCH STEER
+                {t('steerLabel')}
               </span>
               <div
                 ref={steerTrackRef}
@@ -494,7 +475,7 @@ export const ControllerView: React.FC = () => {
           {/* Telemetry / Host Feedback Message */}
           {latestFeedback && (
             <div className="mt-2 w-full text-center rounded-lg border border-[#FFE600]/30 bg-[#FFE600]/10 py-1 px-2 text-[10px] font-['Orbitron'] text-[#FFE600]">
-              {latestFeedback.e}: {latestFeedback.intensity || 'PULSE'}
+              {latestFeedback.e === 'COLLISION' ? t('hapticCollisionAlert') : latestFeedback.e}
             </div>
           )}
         </div>
@@ -504,7 +485,7 @@ export const ControllerView: React.FC = () => {
           <div className="flex items-center gap-1.5 mb-1.5">
             <Crosshair size={16} weight="bold" className="text-[#00F0FF]" />
             <span className="text-[10px] font-['Orbitron'] font-bold tracking-wider text-gray-300">
-              HARPOON
+              REEL
             </span>
           </div>
 
@@ -531,10 +512,10 @@ export const ControllerView: React.FC = () => {
 
             <div className="text-center px-1">
               <span className="block font-['Orbitron'] text-xs font-black tracking-wider">
-                {isReeling ? 'REELING!' : 'REEL'}
+                {isReeling ? 'PULLING!' : t('reelTetherBtn')}
               </span>
               <span className="block font-['Rajdhani'] text-[10px] font-bold opacity-80 mt-0.5">
-                PULL TETHER
+                {t('reelTetherDesc')}
               </span>
             </div>
           </button>
@@ -549,10 +530,10 @@ export const ControllerView: React.FC = () => {
       <footer className="relative z-10 flex items-center justify-between border-t border-white/10 pt-2 text-[10px] text-gray-500 font-mono">
         <div className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-emerald-400" />
-          <span>TOUCH SENSOR @ 40Hz</span>
+          <span>{isGyroActive ? t('gyroActive') : t('touchFallbackActive')}</span>
         </div>
         <div className="text-gray-400">
-          TETHER STRAIN: <span className="text-white font-bold">{currentInputState.thrust > 0 ? 'TIGHT' : 'SLACK'}</span>
+          GAS: <span className="text-white font-bold">{thrustPercent > 0 ? `${thrustPercent}%` : 'OFF'}</span>
         </div>
       </footer>
     </div>

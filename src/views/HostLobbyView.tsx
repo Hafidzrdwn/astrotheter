@@ -21,6 +21,9 @@ import {
   playSyncHoldSound,
   playWarpLaunchSequence
 } from '../utils/audio'
+import { useLanguage } from '../context/LanguageContext'
+import { AstroLogo } from '../components/AstroLogo'
+import { LanguageSelector } from '../components/LanguageSelector'
 
 export interface HostLobbyViewProps {
   roomId: string
@@ -42,6 +45,7 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
   onStartGame,
   regenerateRoom
 }) => {
+  const { t } = useLanguage()
   const [copied, setCopied] = useState(false)
   const controllerUrl = `${window.location.origin}/controller?room=${roomId}`
 
@@ -99,7 +103,7 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
         }, 50)
       }
     } else {
-      // Released early: reset progress
+      // Released early -> reset progress
       if (holdIntervalRef.current) {
         window.clearInterval(holdIntervalRef.current)
         holdIntervalRef.current = null
@@ -110,19 +114,17 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
     return () => {
       if (holdIntervalRef.current) {
         window.clearInterval(holdIntervalRef.current)
-        holdIntervalRef.current = null
       }
     }
   }, [bothReeling, countdown])
 
-  // 3-second countdown transition
   const startCountdown = () => {
     setCountdown(3)
     playCountdownTick(false)
 
     let current = 3
     const timer = window.setInterval(() => {
-      current -= 1
+      current--
       if (current > 0) {
         setCountdown(current)
         playCountdownTick(false)
@@ -151,32 +153,19 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
 
       {/* Top Header Bar */}
       <header className="relative z-10 flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-5">
-        <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#00F0FF] to-[#FF2A85] p-[2px] shadow-lg">
-            <div className="flex h-full w-full items-center justify-center rounded-[10px] bg-[#0B0F19]">
-              <RocketLaunch size={28} weight="fill" className="text-[#00F0FF]" />
-            </div>
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="font-['Orbitron'] text-2xl md:text-3xl font-black tracking-wider text-white">
-                ASTRO<span className="text-[#FF2A85]">TETHER</span>
-              </h1>
-              <span className="rounded-md border border-[#00F0FF]/40 bg-[#00F0FF]/10 px-2 py-0.5 text-xs font-semibold text-[#00F0FF]">
-                MISSION STAGING
-              </span>
-            </div>
-            <p className="text-xs text-gray-400 font-['Space_Grotesk']">
-              Orbital Rendezvous • Dual-Screen Co-Op
-            </p>
-          </div>
+        <div className="flex items-center gap-4">
+          <AstroLogo size={46} showText />
         </div>
 
-        {/* Room & Network Telemetry */}
+        {/* Room, Language Selector, and Controls */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 backdrop-blur-md">
+          {/* Language Switcher (EN | ID) */}
+          <LanguageSelector />
+
+          {/* Room Pill */}
+          <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 backdrop-blur-md">
             <Broadcast size={18} className="animate-pulse text-[#00F0FF]" />
-            <span className="text-xs text-gray-400">ROOM:</span>
+            <span className="text-[11px] text-gray-400 font-mono">{t('roomLabel')}:</span>
             <span className="font-['Orbitron'] text-sm font-bold tracking-widest text-[#FFE600]">
               {roomId}
             </span>
@@ -184,7 +173,7 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
               type="button"
               onClick={regenerateRoom}
               className="text-gray-400 hover:text-white transition ml-1"
-              title="Generate new Room ID"
+              title={t('newRoom')}
             >
               <ArrowsClockwise size={14} />
             </button>
@@ -193,10 +182,10 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
           <Link
             to={`/controller?room=${roomId}`}
             target="_blank"
-            className="flex items-center gap-2 rounded-lg border border-[#00F0FF]/40 bg-[#00F0FF]/15 px-3 py-2 text-xs font-semibold text-[#00F0FF] transition hover:bg-[#00F0FF]/25 hover:shadow-[0_0_15px_rgba(0,240,255,0.4)]"
+            className="flex items-center gap-2 rounded-xl border border-[#00F0FF]/40 bg-[#00F0FF]/15 px-3.5 py-2 text-xs font-semibold text-[#00F0FF] transition hover:bg-[#00F0FF]/25 hover:shadow-[0_0_15px_rgba(0,240,255,0.4)]"
           >
             <DeviceMobile size={18} />
-            <span className="hidden sm:inline">Launch Test Controller</span>
+            <span className="hidden sm:inline">Test Controller</span>
           </Link>
         </div>
       </header>
@@ -208,11 +197,11 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
           <div className="flex items-center gap-2 mb-2">
             <Sparkle size={18} className="text-[#FFE600]" />
             <h2 className="font-['Orbitron'] text-sm font-bold tracking-wider text-gray-200">
-              SMARTPHONE ONBOARDING
+              {t('scanTitle')}
             </h2>
           </div>
-          <p className="text-xs text-gray-400 text-center mb-6 max-w-xs font-['Space_Grotesk']">
-            Scan with two phone cameras to connect instantly without installing an app.
+          <p className="text-xs text-gray-400 text-center mb-6 max-w-xs font-['Space_Grotesk'] leading-relaxed">
+            {t('scanSubtitle')}
           </p>
 
           {/* QR Code Container with Neon Cyber Border */}
@@ -235,7 +224,9 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
             </div>
 
             <div className="mt-4 flex items-center justify-center gap-3">
-              <span className="text-[11px] font-mono text-gray-400 tracking-wider">ROOM CODE:</span>
+              <span className="text-[11px] font-mono text-gray-400 tracking-wider">
+                {t('roomLabel')}:
+              </span>
               <span className="font-['Orbitron'] text-2xl font-black text-[#FFE600] tracking-widest text-glow-yellow">
                 {roomId}
               </span>
@@ -253,10 +244,10 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
             <button
               type="button"
               onClick={handleCopy}
-              className="flex items-center gap-1 rounded-lg bg-[#00F0FF]/20 px-3 py-1.5 text-xs font-bold text-[#00F0FF] hover:bg-[#00F0FF]/30 transition"
+              className="flex items-center gap-1.5 rounded-lg bg-[#00F0FF]/20 px-3 py-1.5 text-xs font-bold text-[#00F0FF] hover:bg-[#00F0FF]/30 transition shrink-0"
             >
               {copied ? <Check size={16} /> : <Copy size={16} />}
-              <span>{copied ? 'Copied' : 'Copy'}</span>
+              <span>{copied ? t('copied') : t('copyLink')}</span>
             </button>
           </div>
         </div>
@@ -268,13 +259,11 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
             <div className="flex items-center gap-2">
               <Radioactive size={18} className="text-[#00F0FF]" />
               <span className="font-['Orbitron'] text-xs font-bold tracking-wider text-gray-300">
-                COCKPIT CO-OP STATUS
+                {bothConnected ? t('autoStartReady') : t('lobbyTagline')}
               </span>
             </div>
             <span className="text-xs font-['Rajdhani'] font-bold text-[#FFE600]">
-              {bothConnected
-                ? 'BOTH PILOTS READY — PRE-FLIGHT SYNC ACTIVE'
-                : 'WAITING FOR 2 PILOTS TO SCAN'}
+              {bothConnected ? '2/2 CONNECTED' : player1Connected || player2Connected ? '1/2 CONNECTED' : '0/2 CONNECTED'}
             </span>
           </div>
 
@@ -301,10 +290,10 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
                   </div>
                   <div>
                     <h3 className="font-['Orbitron'] text-sm font-black text-white">
-                      SLOT 1: ALPHA
+                      {t('p1SlotTitle')}
                     </h3>
                     <p className="text-[11px] text-[#00F0FF] font-['Rajdhani'] font-bold">
-                      PILOT (CYAN POD)
+                      CYAN POD
                     </p>
                   </div>
                 </div>
@@ -321,19 +310,14 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
                       player1Connected ? 'bg-[#00F0FF] animate-ping' : 'bg-gray-500 animate-pulse'
                     }`}
                   />
-                  {player1Connected ? 'Connected (Ready)' : 'Waiting for Pilot...'}
+                  {player1Connected ? t('readyToFly') : t('waitingPilot')}
                 </span>
               </div>
-
-              {/* Pilot Role Description */}
-              <p className="text-xs text-gray-400 font-['Space_Grotesk'] mb-3">
-                Controls directional tilt steer, left thruster boost, and anchors the tether pivot.
-              </p>
 
               {/* Status footer inside card */}
               <div className="flex items-center justify-between border-t border-white/10 pt-2 text-[11px] font-mono text-gray-400">
                 <span>SIGNAL: {player1Connected ? 'STABLE (60 FPS)' : 'OFFLINE'}</span>
-                <span>{player1Connected ? 'P1 ENGAGED' : 'UNASSIGNED'}</span>
+                <span>{player1Connected ? t('pilotJoined') : 'STANDBY'}</span>
               </div>
             </div>
 
@@ -358,10 +342,10 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
                   </div>
                   <div>
                     <h3 className="font-['Orbitron'] text-sm font-black text-white">
-                      SLOT 2: BETA
+                      {t('p2SlotTitle')}
                     </h3>
                     <p className="text-[11px] text-[#FF2A85] font-['Rajdhani'] font-bold">
-                      GUNNER (PINK POD)
+                      PINK POD
                     </p>
                   </div>
                 </div>
@@ -378,43 +362,41 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
                       player2Connected ? 'bg-[#FF2A85] animate-ping' : 'bg-gray-500 animate-pulse'
                     }`}
                   />
-                  {player2Connected ? 'Connected (Ready)' : 'Waiting for Pilot...'}
+                  {player2Connected ? t('readyToFly') : t('waitingCopilot')}
                 </span>
               </div>
-
-              {/* Pilot Role Description */}
-              <p className="text-xs text-gray-400 font-['Space_Grotesk'] mb-3">
-                Manages tether tension, slingshot reel retraction, and activates defense kinetic shields.
-              </p>
 
               {/* Status footer inside card */}
               <div className="flex items-center justify-between border-t border-white/10 pt-2 text-[11px] font-mono text-gray-400">
                 <span>SIGNAL: {player2Connected ? 'STABLE (60 FPS)' : 'OFFLINE'}</span>
-                <span>{player2Connected ? 'P2 ENGAGED' : 'UNASSIGNED'}</span>
+                <span>{player2Connected ? t('copilotJoined') : 'STANDBY'}</span>
               </div>
             </div>
           </div>
 
-          {/* Pre-Flight Calibration Test Panel (Real-Time Live Telemetry) */}
+          {/* Pre-Flight Joy Check / Calibration Panel */}
           <div className="rounded-2xl border border-white/10 bg-black/40 backdrop-blur-xl p-5 shadow-xl">
-            <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-2">
+            <div className="flex items-center justify-between mb-2 border-b border-white/10 pb-2">
               <div className="flex items-center gap-2">
                 <GameController size={18} className="text-[#FFE600]" />
                 <h3 className="font-['Orbitron'] text-xs font-bold tracking-wider text-white">
-                  PRE-FLIGHT CALIBRATION TELEMETRY
+                  {t('shakeTestTitle')}
                 </h3>
               </div>
               <span className="text-[11px] font-mono text-gray-400">
-                {bothConnected ? 'LIVE FEED @ 40Hz' : 'STANDBY MODE'}
+                {bothConnected ? 'LIVE FEED @ 40Hz' : 'STANDBY'}
               </span>
             </div>
+            <p className="text-[11px] text-gray-400 font-['Space_Grotesk'] mb-4">
+              {t('shakeTestSubtitle')}
+            </p>
 
             {/* Live Telemetry Bars */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Player 1 Telemetry */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-xs font-['Rajdhani'] font-bold">
-                  <span className="text-[#00F0FF]">P1 STEER (GYRO)</span>
+                  <span className="text-[#00F0FF]">P1 {t('steerLabel')}</span>
                   <span className="text-gray-300 font-mono">
                     {latestInputs[1]?.st !== undefined ? `${latestInputs[1].st.toFixed(2)}` : '0.00'}
                   </span>
@@ -432,7 +414,7 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
                 </div>
 
                 <div className="flex items-center justify-between text-xs font-['Rajdhani'] font-bold pt-1">
-                  <span className="text-[#00F0FF]">P1 THRUSTER</span>
+                  <span className="text-[#00F0FF]">P1 {t('thrustLabel')}</span>
                   <span className="text-gray-300 font-mono">
                     {Math.round((latestInputs[1]?.th || 0) * 100)}%
                   </span>
@@ -449,7 +431,7 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
               {/* Player 2 Telemetry */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-xs font-['Rajdhani'] font-bold">
-                  <span className="text-[#FF2A85]">P2 STEER (GYRO)</span>
+                  <span className="text-[#FF2A85]">P2 {t('steerLabel')}</span>
                   <span className="text-gray-300 font-mono">
                     {latestInputs[2]?.st !== undefined ? `${latestInputs[2].st.toFixed(2)}` : '0.00'}
                   </span>
@@ -467,7 +449,7 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
                 </div>
 
                 <div className="flex items-center justify-between text-xs font-['Rajdhani'] font-bold pt-1">
-                  <span className="text-[#FF2A85]">P2 THRUSTER</span>
+                  <span className="text-[#FF2A85]">P2 {t('thrustLabel')}</span>
                   <span className="text-gray-300 font-mono">
                     {Math.round((latestInputs[2]?.th || 0) * 100)}%
                   </span>
@@ -497,10 +479,10 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
               </div>
               <div>
                 <h4 className="font-['Orbitron'] text-xs font-black tracking-wider text-white">
-                  CO-OP TETHER SYNC LAUNCH
+                  {t('autoStartReady')}
                 </h4>
                 <p className="text-xs text-gray-400 font-['Space_Grotesk']">
-                  Both pilots hold <span className="text-[#FFE600] font-bold">REEL</span> button on phone for 2s to launch.
+                  {t('autoStartInstruction')}
                 </p>
               </div>
             </div>
@@ -532,7 +514,7 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
                     disabled={!bothConnected}
                     className="rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-xs font-['Orbitron'] font-bold text-gray-300 hover:bg-white/20 disabled:opacity-40 disabled:cursor-not-allowed transition"
                   >
-                    Manual Override
+                    Start Game
                   </button>
                 </div>
               )}
@@ -548,13 +530,13 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
             {countdown > 0 ? (
               <>
                 <span className="font-['Orbitron'] text-xs font-black tracking-widest text-[#00F0FF] mb-4">
-                  WARP CORE CHARGING
+                  {t('launchingCountdown')}
                 </span>
                 <div className="font-['Orbitron'] text-9xl md:text-[14rem] font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-[#00F0FF] to-[#FF2A85] drop-shadow-[0_0_60px_rgba(0,240,255,0.8)] animate-scale-up">
                   {countdown}
                 </div>
                 <p className="mt-4 font-['Rajdhani'] text-sm font-bold tracking-wider text-gray-400">
-                  TETHER CALIBRATION LOCKED
+                  {t('lobbyTagline')}
                 </p>
               </>
             ) : (
@@ -563,7 +545,7 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
                   LAUNCH!
                 </div>
                 <span className="mt-6 font-['Orbitron'] text-sm font-bold text-white tracking-widest">
-                  ENTERING ORBITAL SECTOR...
+                  {t('arenaActive')}
                 </span>
               </>
             )}
@@ -576,15 +558,15 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
         <div className="flex items-center gap-3">
           <span className="inline-flex items-center gap-1.5 text-gray-400">
             <Sparkle size={14} className="text-[#FFE600]" />
-            AstroTether Mission Staging Hub
+            AstroTether
           </span>
           <span>•</span>
-          <span className="text-[#00F0FF]">P1 Pilot (Cyan)</span>
+          <span className="text-[#00F0FF]">{t('p1SlotTitle')}</span>
           <span>•</span>
-          <span className="text-[#FF2A85]">P2 Gunner (Pink)</span>
+          <span className="text-[#FF2A85]">{t('p2SlotTitle')}</span>
         </div>
         <div>
-          <span>Target Resolution: 1080p/4K 60FPS</span>
+          <span>{t('brandSubtitle')}</span>
         </div>
       </footer>
     </div>

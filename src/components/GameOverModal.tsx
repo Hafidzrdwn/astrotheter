@@ -8,10 +8,11 @@ import {
   Heart,
   Timer,
   ShieldWarning,
-  Planet,
   Lightning
 } from '@phosphor-icons/react'
 import { type CoupleSynergyResult } from '../hooks/useCoupleSynergy'
+import { useLanguage } from '../context/LanguageContext'
+import { AstroLogo } from './AstroLogo'
 
 export interface FlightPoint {
   x: number
@@ -40,8 +41,19 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
   onRematch,
   onReturnToLobby
 }) => {
+  const { t } = useLanguage()
   const pathCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const isVictory = outcome === 'VICTORY'
+
+  // Dynamic localized relationship title & quote
+  const getLocalizedTitle = () => {
+    if (result.score >= 90) return { title: t('harmonicDuoTitle'), quote: t('harmonicDuoQuote') }
+    if (result.score >= 75) return { title: t('tetherLoversTitle'), quote: t('tetherLoversQuote') }
+    if (result.score >= 55) return { title: t('tugOfWarTitle'), quote: t('tugOfWarQuote') }
+    return { title: t('chaosCoupleTitle'), quote: t('chaosCoupleQuote') }
+  }
+
+  const { title: displayTitle, quote: displayQuote } = getLocalizedTitle()
 
   // Render the flight path tracking thumbnail inside the 2D mini canvas
   useEffect(() => {
@@ -75,7 +87,6 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
 
     const allPoints = [...ship1Path, ...ship2Path]
     if (allPoints.length < 2) {
-      // Placeholder decorative curve if points were sparse
       ctx.fillStyle = 'rgba(255, 255, 255, 0.3)'
       ctx.font = '10px Space Grotesk'
       ctx.textAlign = 'center'
@@ -191,12 +202,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
 
         {/* Card Header */}
         <div className="relative z-10 flex items-center justify-between border-b border-white/10 pb-3">
-          <div className="flex items-center gap-2">
-            <Planet size={20} className={isVictory ? 'text-[#00F0FF]' : 'text-[#FF2A85]'} />
-            <span className="font-['Orbitron'] text-xs font-black tracking-widest text-white">
-              ASTROTETHER
-            </span>
-          </div>
+          <AstroLogo size={28} showText />
           <span
             className={`rounded-full px-3 py-1 font-['Orbitron'] text-[10px] font-bold tracking-wider uppercase border ${
               isVictory
@@ -204,7 +210,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
                 : 'border-red-500/50 bg-red-500/10 text-red-300'
             }`}
           >
-            {isVictory ? 'MISSION COMPLETED' : 'TETHER SEVERED'}
+            {isVictory ? t('missionVictoryTitle') : t('missionDefeatTitle')}
           </span>
         </div>
 
@@ -229,7 +235,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
           <div className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-semibold text-gray-200">
             <Heart size={14} weight="fill" className="text-[#FF2A85] animate-pulse" />
             <span className="font-['Orbitron'] text-xs tracking-wide text-white">
-              {result.title}
+              {displayTitle}
             </span>
           </div>
 
@@ -250,13 +256,13 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
               <span className="font-['Orbitron'] text-2xl font-bold text-gray-400">%</span>
             </div>
             <p className="font-['Rajdhani'] text-[11px] font-bold tracking-widest text-gray-400 uppercase">
-              Couple Synergy Quotient
+              {t('coupleScoreTitle')}
             </p>
           </div>
 
           {/* Playful quote */}
           <p className="px-4 text-xs italic text-gray-300 font-['Space_Grotesk'] line-clamp-2">
-            "{result.quote}"
+            "{displayQuote}"
           </p>
         </div>
 
@@ -265,7 +271,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
           <div className="mb-1.5 flex items-center justify-between text-[10px] font-bold text-gray-400 font-['Orbitron']">
             <span className="flex items-center gap-1">
               <Sparkle size={12} className="text-[#FFE600]" />
-              FLIGHT PATH TRACKING
+              {t('flightPathTracking')}
             </span>
             <div className="flex items-center gap-2 font-mono text-[9px]">
               <span className="text-[#00F0FF]">■ P1</span>
@@ -285,7 +291,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
             <span className="font-['Orbitron'] text-xs font-bold text-white">
               {result.runTimeFormatted}
             </span>
-            <span className="text-[9px] text-gray-400 font-['Space_Grotesk']">Duration</span>
+            <span className="text-[9px] text-gray-400 font-['Space_Grotesk']">{t('durationStat')}</span>
           </div>
 
           <div className="flex flex-col items-center rounded-xl border border-white/10 bg-white/5 p-2 text-center">
@@ -293,7 +299,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
             <span className="font-['Orbitron'] text-xs font-bold text-[#FFE600]">
               {result.tensionConsistencyPercent}%
             </span>
-            <span className="text-[9px] text-gray-400 font-['Space_Grotesk']">Tether Flow</span>
+            <span className="text-[9px] text-gray-400 font-['Space_Grotesk']">{t('tetherFlowStat')}</span>
           </div>
 
           <div className="flex flex-col items-center rounded-xl border border-white/10 bg-white/5 p-2 text-center">
@@ -301,7 +307,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
             <span className="font-['Orbitron'] text-xs font-bold text-[#FF2A85]">
               {result.collisionCount}
             </span>
-            <span className="text-[9px] text-gray-400 font-['Space_Grotesk']">Hits</span>
+            <span className="text-[9px] text-gray-400 font-['Space_Grotesk']">{t('collisionStat')}</span>
           </div>
         </div>
 
@@ -313,7 +319,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#00F0FF] via-[#00B4D8] to-[#FF2A85] py-3 font-['Orbitron'] text-xs font-black tracking-wider text-black shadow-lg hover:brightness-110 active:scale-95 transition"
           >
             <ArrowsClockwise size={18} weight="bold" />
-            <span>INSTANT REMATCH</span>
+            <span>{t('instantRematchBtn')}</span>
           </button>
 
           {onReturnToLobby && (
@@ -323,7 +329,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
               className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 py-2 font-['Orbitron'] text-[11px] font-bold tracking-wider text-gray-400 hover:bg-white/10 hover:text-white transition"
             >
               <ArrowLeft size={14} />
-              <span>RETURN TO LOBBY</span>
+              <span>{t('returnToLobbyBtn')}</span>
             </button>
           )}
         </div>
@@ -331,3 +337,5 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
     </div>
   )
 }
+
+export default GameOverModal

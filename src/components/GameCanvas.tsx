@@ -6,6 +6,7 @@ import { useCoupleSynergy, type CoupleSynergyResult } from '../hooks/useCoupleSy
 import { playTone, playWarpLaunchSequence } from '../utils/audio'
 import { SoundFX } from '../utils/SoundFX'
 import { GameOverModal, type FlightPoint } from './GameOverModal'
+import { useLanguage } from '../context/LanguageContext'
 
 const { Engine, World, Bodies, Body, Constraint, Events } = Matter
 
@@ -49,6 +50,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   onStageCompleted,
   onReturnToLobby
 }) => {
+  const { t } = useLanguage()
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
 
@@ -671,7 +673,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             }`}
           />
           <span className="font-['Orbitron'] text-[11px] font-bold text-gray-200">
-            TETHER: {telemetry.distance}px ({telemetry.strainPercent}%)
+            {t('tetherTension')}: {telemetry.distance}px ({telemetry.strainPercent}%)
           </span>
           <span
             className={`rounded px-1.5 py-0.5 text-[10px] font-black ${
@@ -688,7 +690,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
         {/* Live Couple Synergy Meter */}
         <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-[#0B0F19]/80 backdrop-blur-md px-3 py-2 shadow-lg">
-          <span className="text-gray-400 font-['Space_Grotesk'] text-[11px]">COUPLE SYNERGY:</span>
+          <span className="text-gray-400 font-['Space_Grotesk'] text-[11px]">{t('coupleSynergy')}:</span>
           <span
             className={`font-['Orbitron'] text-sm font-black ${
               liveSynergyScore >= 80
@@ -705,7 +707,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         {/* Level Objective & Gate Status */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#0B0F19]/80 backdrop-blur-md px-3 py-2 shadow-lg">
-            <span className="text-[10px] text-gray-400 font-mono">CORE DISTANCE:</span>
+            <span className="text-[10px] text-gray-400 font-mono">{t('coreDistance')}:</span>
             <span className="font-['Orbitron'] text-xs font-bold text-[#FFE600]">
               {telemetry.coreDistanceToWarp}px
             </span>
@@ -720,7 +722,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           >
             <span className="h-2 w-2 rounded-full bg-current" />
             <span className="font-['Orbitron'] text-[10px] font-bold">
-              LASER GATE: {telemetry.laserDeactivated ? 'DEACTIVATED' : 'ACTIVE'}
+              {t('laserGate')}: {telemetry.laserDeactivated ? t('laserDeactivated') : t('laserActive')}
             </span>
           </div>
         </div>
@@ -729,7 +731,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       {/* Critical Overstretch Danger HUD Alert */}
       {telemetry.status === 'CRITICAL' && (
         <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full border border-red-500 bg-red-950/80 px-4 py-1.5 text-xs font-black text-red-200 tracking-wider font-['Orbitron'] animate-bounce shadow-[0_0_30px_rgba(255,0,51,0.6)]">
-          <span>⚠️ WARNING: TETHER OVERSTRETCHED — REEL OR CLOSE DISTANCE!</span>
+          <span>{t('overstretchWarning')}</span>
         </div>
       )}
 

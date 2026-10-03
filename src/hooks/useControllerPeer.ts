@@ -109,9 +109,10 @@ export function useControllerPeer(targetRoomId?: string): UseControllerPeerRetur
       peerRef.current = null
     }
 
-    // Ephemeral client peer ID
+    // Ephemeral client peer ID with keep-alive
     const peer = new Peer({
       debug: 1,
+      pingInterval: 5000,
       config: {
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
@@ -256,18 +257,24 @@ export function useControllerPeer(targetRoomId?: string): UseControllerPeerRetur
     }
   }, [connectionState, playerSlot])
 
-  // Auto-connect upon mount or targetRoomId change
+  // Auto-connect upon mount or targetRoomId change with 150ms debounce
   useEffect(() => {
     isCleaningUpRef.current = false
 
-    if (normalizedRoomId) {
-      connectToHost()
-    } else {
+    if (!normalizedRoomId) {
       setConnectionState('DISCONNECTED')
+      return
     }
+
+    const timer = window.setTimeout(() => {
+      if (!isCleaningUpRef.current) {
+        connectToHost()
+      }
+    }, 150)
 
     return () => {
       isCleaningUpRef.current = true
+      window.clearTimeout(timer)
       if (intervalRef.current) {
         window.clearInterval(intervalRef.current)
         intervalRef.current = null

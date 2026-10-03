@@ -50,7 +50,7 @@ graph TD
         H_Peer["PeerJS WebRTC Broker Host"]
         H_Audio["Cosmic Web Audio Synthesizer"]
         
-        H_Peer -->|Broadcast State| H_Engine
+        H_Peer -->|"Broadcast State"| H_Engine
         H_Engine --> H_Canvas
         H_Engine --> H_Audio
     end
@@ -73,8 +73,8 @@ graph TD
         C2_Wheel & C2_Thrust & C2_Reel --> C2_P2P
     end
 
-    C1_P2P <==>|WebRTC DataChannel (~40Hz)| H_Peer
-    C2_P2P <==>|WebRTC DataChannel (~40Hz)| H_Peer
+    C1_P2P <-->|"WebRTC DataChannel ~40Hz"| H_Peer
+    C2_P2P <-->|"WebRTC DataChannel ~40Hz"| H_Peer
 ```
 
 ---
@@ -125,7 +125,7 @@ Terminal akan menampilkan URL jaringan lokal, misalnya:
 2. Di layar host akan muncul **Room Code** beserta **QR Code**.
 3. Ambil smartphone Pemain 1 dan Pemain 2:
    - **Metode A**: Buka kamera HP dan scan QR Code di layar host.
-   - **Metode B**: Buka `http://<IP-HOST>:5173/join` dan masukkan Room Code secara manual atau gunakan kamera pemindai internal web.
+   - **Metode B**: Buka `http://<IP-HOST>:5173/#/join` (atau langsung scan via kamera) dan masukkan Room Code secara manual atau gunakan kamera pemindai internal web.
 4. Ketika kedua pilot terhubung, layar host akan otomatis membuka arena antariksa!
 
 ---

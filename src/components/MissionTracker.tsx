@@ -21,27 +21,27 @@ export const MissionTracker: React.FC<MissionTrackerProps> = ({
 
   return (
     <div className="absolute top-16 left-4 z-20 select-none">
-      <div className="rounded-xl border border-white/15 bg-[#0B0F19]/90 backdrop-blur-md p-3.5 shadow-2xl text-white font-['Space_Grotesk'] w-72 transition-all">
+      <div className="rounded-2xl border border-white/15 bg-[#0B0F19]/90 backdrop-blur-md p-3.5 shadow-2xl text-white font-['Space_Grotesk'] w-[330px] transition-all">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-2.5">
-          <div className="flex items-center gap-1.5">
+        <div className="flex items-center justify-between border-b border-white/10 pb-2.5 mb-2.5 gap-2">
+          <div className="flex items-center gap-1.5 min-w-0">
             <span className="text-sm">🎯</span>
-            <span className="font-['Orbitron'] text-[11px] font-black tracking-wider text-gray-200">
+            <span className="font-['Orbitron'] text-[11px] font-black tracking-wide text-gray-100 truncate">
               {t('missionTrackerTitle')}
             </span>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5 flex-shrink-0">
             <button
               onClick={onOpenHowToWin}
-              className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-[#00F0FF]/15 border border-[#00F0FF]/40 text-[#00F0FF] hover:bg-[#00F0FF]/25 transition-all font-bold"
+              className="whitespace-nowrap flex items-center gap-1 text-[10px] font-mono font-bold px-2.5 py-1 rounded-lg bg-[#00F0FF]/15 border border-[#00F0FF]/50 text-[#00F0FF] hover:bg-[#00F0FF]/25 shadow-[0_0_10px_rgba(0,240,255,0.2)] active:scale-95 transition-all"
               title="Panduan Cara Menang"
             >
-              {t('howToWinBtn')}
+              <span>{t('howToWinBtn')}</span>
             </button>
             <button
               onClick={() => setIsMinimized(!isMinimized)}
-              className="text-gray-400 hover:text-white text-xs px-1"
+              className="text-gray-400 hover:text-white text-xs px-1 py-1 rounded hover:bg-white/10 transition-colors"
             >
               {isMinimized ? '▼' : '▲'}
             </button>

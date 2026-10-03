@@ -70,7 +70,7 @@ export const MiniMap: React.FC<MiniMapProps> = ({
 
   return (
     <div className="absolute bottom-4 right-4 z-20 select-none">
-      <div className="rounded-2xl border border-white/15 bg-[#0B0F19]/90 backdrop-blur-md p-3 shadow-2xl text-white font-['Space_Grotesk'] transition-all">
+      <div className="rounded-2xl border border-white/15 bg-[#0B0F19]/90 backdrop-blur-md p-3.5 shadow-2xl text-white font-['Space_Grotesk'] transition-all w-[184px]">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/10 pb-1.5 mb-2">
           <div className="flex items-center gap-1.5">
@@ -187,23 +187,23 @@ export const MiniMap: React.FC<MiniMapProps> = ({
               </svg>
             </div>
 
-            {/* Quick Radar Legend */}
-            <div className="flex items-center justify-between w-full mt-2 px-1 text-[9px] font-mono text-gray-400">
-              <span className="flex items-center gap-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#FFE600]" />
-                {t('radarLegendCore')}
+            {/* Quick Radar Legend - 2x2 Grid with generous spacing */}
+            <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 w-full mt-2.5 pt-2 border-t border-white/10 text-[10px] font-mono text-gray-300">
+              <span className="flex items-center gap-1.5 min-w-0">
+                <span className="h-2 w-2 rounded-full bg-[#FFE600] flex-shrink-0 shadow-[0_0_6px_#FFE600]" />
+                <span className="truncate">{t('radarLegendCore')}</span>
               </span>
-              <span className="flex items-center gap-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#A855F7]" />
-                {t('radarLegendWarp')}
+              <span className="flex items-center gap-1.5 min-w-0">
+                <span className="h-2 w-2 rounded-full bg-[#A855F7] flex-shrink-0 shadow-[0_0_6px_#A855F7]" />
+                <span className="truncate">{t('radarLegendWarp')}</span>
               </span>
-              <span className="flex items-center gap-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#00F0FF]" />
-                P1
+              <span className="flex items-center gap-1.5 min-w-0">
+                <span className="h-2 w-2 rounded-full bg-[#00F0FF] flex-shrink-0 shadow-[0_0_6px_#00F0FF]" />
+                <span className="truncate">{t('radarLegendP1')}</span>
               </span>
-              <span className="flex items-center gap-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#FF2A85]" />
-                P2
+              <span className="flex items-center gap-1.5 min-w-0">
+                <span className="h-2 w-2 rounded-full bg-[#FF2A85] flex-shrink-0 shadow-[0_0_6px_#FF2A85]" />
+                <span className="truncate">{t('radarLegendP2')}</span>
               </span>
             </div>
           </div>

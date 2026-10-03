@@ -863,7 +863,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   return (
     <div
       ref={containerRef}
-      className="relative flex-1 w-full min-h-[500px] h-[580px] rounded-2xl overflow-hidden bg-[#060911] border border-white/10 shadow-2xl select-none"
+      className="relative flex-1 w-full min-h-[540px] h-[calc(100vh-230px)] max-h-[820px] rounded-2xl overflow-hidden bg-[#060911] border border-white/10 shadow-2xl select-none"
     >
       <canvas ref={canvasRef} className="block w-full h-full cursor-crosshair" />
 

@@ -385,21 +385,21 @@ export const ControllerView: React.FC = () => {
   // Room Full view
   if (connectionState === 'ROOM_FULL') {
     return (
-      <div className="min-h-screen w-full bg-[#0B0F19] text-gray-100 flex flex-col items-center justify-center p-6 text-center select-none overflow-y-auto">
+      <div className="min-h-screen w-full bg-space-navy text-gray-100 flex flex-col items-center justify-center p-6 text-center select-none overflow-y-auto">
         <div className="flex h-20 w-20 items-center justify-center rounded-3xl border border-red-500/40 bg-red-500/10 shadow-[0_0_35px_rgba(255,42,133,0.3)] mb-6">
-          <WarningCircle size={44} className="text-[#FF2A85]" />
+          <WarningCircle size={44} className="text-neon-pink" />
         </div>
         <h2 className="font-['Orbitron'] text-xl font-black text-white tracking-wider mb-2">
           ROOM ALREADY FULL
         </h2>
         <p className="text-xs text-gray-400 max-w-xs mb-6">
-          Room <span className="text-[#FFE600] font-bold font-mono">{roomId}</span> already has two connected pilots. Please create or join a new room.
+          Room <span className="text-neon-yellow font-bold font-mono">{roomId}</span> already has two connected pilots. Please create or join a new room.
         </p>
         <div className="flex flex-col sm:flex-row gap-3">
           <button
             type="button"
             onClick={() => navigate('/join')}
-            className="rounded-xl bg-gradient-to-r from-[#00F0FF] to-[#0099FF] text-black px-6 py-3 font-['Orbitron'] text-xs font-black hover:brightness-110 active:scale-95 transition"
+            className="rounded-xl bg-linear-to-r from-neon-cyan to-[#0099FF] text-black px-6 py-3 font-['Orbitron'] text-xs font-black hover:brightness-110 active:scale-95 transition"
           >
             JOIN ANOTHER ROOM
           </button>
@@ -417,16 +417,16 @@ export const ControllerView: React.FC = () => {
   // Connecting view
   if (connectionState === 'CONNECTING') {
     return (
-      <div className="min-h-screen w-full bg-[#0B0F19] text-gray-100 flex flex-col items-center justify-center p-6 text-center select-none overflow-y-auto">
+      <div className="min-h-screen w-full bg-space-navy text-gray-100 flex flex-col items-center justify-center p-6 text-center select-none overflow-y-auto">
         <div className="relative mb-6">
           <AstroLogo size={64} />
-          <div className="absolute inset-0 rounded-full border border-[#00F0FF] animate-ping opacity-30" />
+          <div className="absolute inset-0 rounded-full border border-neon-cyan animate-ping opacity-30" />
         </div>
         <h2 className="font-['Orbitron'] text-base font-bold text-white tracking-wider mb-1">
           {t('connectingToHost')}
         </h2>
         <p className="text-xs text-gray-400 font-mono mb-4">
-          {t('roomLabel')}: <span className="text-[#FFE600] font-bold">{roomId}</span>
+          {t('roomLabel')}: <span className="text-neon-yellow font-bold">{roomId}</span>
         </p>
         <LanguageSelector className="mt-2" />
         <button
@@ -441,7 +441,7 @@ export const ControllerView: React.FC = () => {
   }
 
   return (
-    <div className="h-[100dvh] max-h-[100dvh] w-full bg-[#0B0F19] text-gray-100 flex flex-col justify-between p-3 pb-16 select-none overflow-y-auto overscroll-y-contain landscape:p-2 landscape:pb-10">
+    <div className="h-dvh max-h-dvh w-full bg-space-navy text-gray-100 flex flex-col justify-between p-3 pb-16 select-none overflow-y-auto overscroll-y-contain landscape:p-2 landscape:pb-10">
       {/* Background ambient lighting */}
       <div
         className="pointer-events-none fixed -top-24 left-1/2 -translate-x-1/2 h-64 w-64 rounded-full blur-[100px] transition-colors duration-500"
@@ -458,7 +458,7 @@ export const ControllerView: React.FC = () => {
               <span className="font-['Orbitron'] text-xs font-black tracking-wider text-white">
                 ASTRO<span style={{ color: themeColor }}>TETHER</span>
               </span>
-              <span className="font-mono text-[11px] font-bold text-[#FFE600] bg-black/40 px-2 py-0.5 rounded-lg border border-white/10">
+              <span className="font-mono text-[11px] font-bold text-neon-yellow bg-black/40 px-2 py-0.5 rounded-lg border border-white/10">
                 {roomId}
               </span>
             </div>
@@ -506,7 +506,7 @@ export const ControllerView: React.FC = () => {
               className="flex items-center gap-1 px-2 py-1 rounded-xl border border-white/20 bg-white/10 text-[10px] font-['Orbitron'] font-bold text-gray-200 hover:bg-white/20 hover:text-white active:scale-95 transition"
               title={isP1 ? t('swapToPink') : t('swapToCyan')}
             >
-              <ArrowsLeftRight size={13} className="text-[#FFE600]" />
+              <ArrowsLeftRight size={13} className="text-neon-yellow" />
               <span>{t('switchPodBtn')}</span>
             </button>
           </div>
@@ -516,7 +516,7 @@ export const ControllerView: React.FC = () => {
               type="button"
               onClick={() => setHapticEnabled(!hapticEnabled)}
               className={`p-1.5 rounded-lg border border-white/10 transition ${
-                hapticEnabled ? 'bg-white/10 text-[#FFE600]' : 'bg-transparent text-gray-600'
+                hapticEnabled ? 'bg-white/10 text-neon-yellow' : 'bg-transparent text-gray-600'
               }`}
               title="Toggle Vibration"
             >
@@ -570,7 +570,7 @@ export const ControllerView: React.FC = () => {
       {/* Room Expired / Host Refreshed Modal Overlay */}
       {connectionState === 'ROOM_EXPIRED' && (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-center">
-          <div className="rounded-3xl border border-red-500/30 bg-[#0B0F19] p-6 max-w-sm w-full space-y-4 shadow-2xl">
+          <div className="rounded-3xl border border-red-500/30 bg-space-navy p-6 max-w-sm w-full space-y-4 shadow-2xl">
             <div className="h-14 w-14 rounded-2xl bg-red-500/20 text-red-400 border border-red-500/40 flex items-center justify-center mx-auto">
               <WarningCircle size={32} weight="bold" />
             </div>
@@ -584,7 +584,7 @@ export const ControllerView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate('/join')}
-                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-[#00F0FF] to-[#0099FF] text-black font-['Orbitron'] text-xs font-black tracking-wider hover:brightness-110 active:scale-95 transition"
+                className="w-full py-3 px-4 rounded-xl bg-linear-to-r from-neon-cyan to-[#0099FF] text-black font-['Orbitron'] text-xs font-black tracking-wider hover:brightness-110 active:scale-95 transition"
               >
                 {t('enterNewRoomBtn')}
               </button>
@@ -617,15 +617,15 @@ export const ControllerView: React.FC = () => {
 
       {/* iOS Gyroscope Permission Prompt Banner */}
       {gyroPermission === 'prompt' && (
-        <div className="relative z-10 my-1 flex items-center justify-between rounded-xl border border-[#FFE600]/40 bg-[#FFE600]/10 p-2 text-xs">
-          <div className="flex items-center gap-2 text-[#FFE600] font-['Rajdhani'] font-bold">
+        <div className="relative z-10 my-1 flex items-center justify-between rounded-xl border border-neon-yellow/40 bg-neon-yellow/10 p-2 text-xs">
+          <div className="flex items-center gap-2 text-neon-yellow font-['Rajdhani'] font-bold">
             <Compass size={18} className="animate-spin" />
             <span>{t('gyroRequestTitle')}</span>
           </div>
           <button
             type="button"
             onClick={requestGyroPermission}
-            className="rounded-lg bg-[#FFE600] px-3 py-1 font-['Orbitron'] text-[11px] font-black text-black shadow-[0_0_12px_rgba(255,230,0,0.6)] active:scale-95 transition"
+            className="rounded-lg bg-neon-yellow px-3 py-1 font-['Orbitron'] text-[11px] font-black text-black shadow-[0_0_12px_rgba(255,230,0,0.6)] active:scale-95 transition"
           >
             {t('enableMotionBtn')}
           </button>
@@ -641,8 +641,8 @@ export const ControllerView: React.FC = () => {
           onPointerCancel={handleDashUp}
           className={`w-full max-w-xs py-2.5 px-6 rounded-2xl border flex items-center justify-center gap-3 transition-all duration-150 active:scale-95 select-none ${
             isDashing
-              ? 'border-[#FFE600] bg-[#FFE600] text-black shadow-[0_0_30px_rgba(255,230,0,0.9)] scale-95'
-              : 'border-[#FFE600]/50 bg-[#FFE600]/15 text-[#FFE600] shadow-[0_0_15px_rgba(255,230,0,0.3)]'
+              ? 'border-neon-yellow bg-neon-yellow text-black shadow-[0_0_30px_rgba(255,230,0,0.9)] scale-95'
+              : 'border-neon-yellow/50 bg-neon-yellow/15 text-neon-yellow shadow-[0_0_15px_rgba(255,230,0,0.3)]'
           }`}
         >
           <Lightning size={20} weight="fill" className={isDashing ? 'animate-bounce' : ''} />
@@ -657,7 +657,7 @@ export const ControllerView: React.FC = () => {
         {/* LEFT COLUMN: Vertical Slider for Thrust (Auto-returns to 0 on release) */}
         <div className="col-span-4 flex flex-col items-center justify-center h-full">
           <div className="flex items-center gap-1 mb-1.5 px-0.5">
-            <Flame size={14} weight="fill" className="text-[#FF2A85]" />
+            <Flame size={14} weight="fill" className="text-neon-pink" />
             <span className="text-[10px] font-['Orbitron'] font-bold tracking-wider text-gray-300">
               {t('thrustLabel')}
             </span>
@@ -670,7 +670,7 @@ export const ControllerView: React.FC = () => {
             onPointerMove={handleThrustPointerMove}
             onPointerUp={handleThrustPointerUp}
             onPointerCancel={handleThrustPointerCancel}
-            className="relative w-20 h-44 landscape:h-36 rounded-2xl border border-white/20 bg-black/60 p-1.5 flex flex-col justify-end overflow-hidden shadow-2xl backdrop-blur-md active:border-[#00F0FF]/60 cursor-pointer touch-none select-none"
+            className="relative w-20 h-44 landscape:h-36 rounded-2xl border border-white/20 bg-black/60 p-1.5 flex flex-col justify-end overflow-hidden shadow-2xl backdrop-blur-md active:border-neon-cyan/60 cursor-pointer touch-none select-none"
           >
             {/* Level Fill Indicator */}
             <div
@@ -726,7 +726,7 @@ export const ControllerView: React.FC = () => {
             onClick={() => setUseManualSteer(!useManualSteer)}
             className="flex items-center gap-1 mb-2 px-2.5 py-1 rounded-full border border-white/10 bg-white/5 text-[9px] font-['Orbitron'] font-bold text-gray-300 hover:text-white transition"
           >
-            <Compass size={12} className={isGyroActive ? 'text-[#00F0FF]' : 'text-gray-500'} />
+            <Compass size={12} className={isGyroActive ? 'text-neon-cyan' : 'text-gray-500'} />
             <span>{isGyroActive ? 'GYRO' : 'TOUCH'}</span>
           </button>
 
@@ -736,8 +736,8 @@ export const ControllerView: React.FC = () => {
               <div className="relative w-full h-24 rounded-2xl border border-white/10 bg-black/50 p-2 flex flex-col items-center justify-center overflow-hidden shadow-inner">
                 {/* Center crosshair */}
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-40">
-                  <div className="w-8 h-[1px] bg-white" />
-                  <div className="h-8 w-[1px] bg-white absolute" />
+                  <div className="w-8 h-px bg-white" />
+                  <div className="h-8 w-px bg-white absolute" />
                 </div>
 
                 {/* Horizon Line tilted by gamma */}
@@ -764,7 +764,7 @@ export const ControllerView: React.FC = () => {
                 <button
                   type="button"
                   onClick={calibrateGyro}
-                  className="text-[#FFE600] underline"
+                  className="text-neon-yellow underline"
                 >
                   CALIBRATE
                 </button>
@@ -773,9 +773,9 @@ export const ControllerView: React.FC = () => {
           ) : (
             /* Futuristic Cyberpunk Steering Wheel / Flight Yoke */
             <div className="w-full flex flex-col items-center justify-center">
-              <div className="flex items-center justify-between w-full max-w-[160px] mb-1 px-1 text-[9px] font-mono font-bold">
+              <div className="flex items-center justify-between w-full max-w-40 mb-1 px-1 text-[9px] font-mono font-bold">
                 <span className="text-gray-400 flex items-center gap-1 font-['Orbitron']">
-                  <Compass size={11} className="text-[#00F0FF]" />
+                  <Compass size={11} className="text-neon-cyan" />
                   STEER
                 </span>
                 <span style={{ color: themeColor }}>
@@ -790,12 +790,12 @@ export const ControllerView: React.FC = () => {
                 onPointerMove={handleSteerPointerMove}
                 onPointerUp={handleSteerPointerUp}
                 onPointerCancel={handleSteerPointerCancel}
-                className="relative w-40 h-40 landscape:w-32 landscape:h-32 rounded-full border-2 border-white/15 bg-black/70 flex items-center justify-center cursor-pointer shadow-2xl active:border-[#00F0FF]/50 touch-none select-none backdrop-blur-md"
+                className="relative w-40 h-40 landscape:w-32 landscape:h-32 rounded-full border-2 border-white/15 bg-black/70 flex items-center justify-center cursor-pointer shadow-2xl active:border-neon-cyan/50 touch-none select-none backdrop-blur-md"
               >
                 {/* Center crosshair guides */}
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-15">
-                  <div className="w-full h-[1px] bg-white" />
-                  <div className="h-full w-[1px] bg-white absolute" />
+                  <div className="w-full h-px bg-white" />
+                  <div className="h-full w-px bg-white absolute" />
                 </div>
 
                 {/* Rotating Wheel / Yoke */}
@@ -868,7 +868,7 @@ export const ControllerView: React.FC = () => {
 
           {/* Telemetry / Host Feedback Message */}
           {latestFeedback && (
-            <div className="mt-2 w-full text-center rounded-lg border border-[#FFE600]/30 bg-[#FFE600]/10 py-1 px-2 text-[10px] font-['Orbitron'] text-[#FFE600]">
+            <div className="mt-2 w-full text-center rounded-lg border border-neon-yellow/30 bg-neon-yellow/10 py-1 px-2 text-[10px] font-['Orbitron'] text-neon-yellow">
               {latestFeedback.e === 'COLLISION' ? t('hapticCollisionAlert') : latestFeedback.e}
             </div>
           )}
@@ -877,7 +877,7 @@ export const ControllerView: React.FC = () => {
         {/* RIGHT COLUMN: Big Action Button for "REEL TETHER" (Pull) */}
         <div className="col-span-4 flex flex-col items-center justify-center h-full">
           <div className="flex items-center gap-1.5 mb-1.5">
-            <Crosshair size={16} weight="bold" className="text-[#00F0FF]" />
+            <Crosshair size={16} weight="bold" className="text-neon-cyan" />
             <span className="text-[10px] font-['Orbitron'] font-bold tracking-wider text-gray-300">
               REEL
             </span>
@@ -890,15 +890,15 @@ export const ControllerView: React.FC = () => {
             onPointerCancel={handleReelUp}
             className={`relative h-44 landscape:h-36 w-24 rounded-2xl border flex flex-col items-center justify-center gap-3 transition-all duration-100 active:scale-95 shadow-2xl backdrop-blur-md cursor-pointer select-none ${
               isReeling
-                ? 'border-[#00F0FF] bg-[#00F0FF] text-black shadow-[0_0_35px_rgba(0,240,255,0.9)] scale-95'
-                : 'border-[#00F0FF]/50 bg-[#00F0FF]/15 text-[#00F0FF] shadow-[0_0_15px_rgba(0,240,255,0.3)]'
+                ? 'border-neon-cyan bg-neon-cyan text-black shadow-[0_0_35px_rgba(0,240,255,0.9)] scale-95'
+                : 'border-neon-cyan/50 bg-neon-cyan/15 text-neon-cyan shadow-[0_0_15px_rgba(0,240,255,0.3)]'
             }`}
           >
             <div
               className={`flex h-14 w-14 items-center justify-center rounded-full border-2 transition-all ${
                 isReeling
-                  ? 'border-black bg-black text-[#00F0FF]'
-                  : 'border-[#00F0FF]/60 bg-[#00F0FF]/20 text-[#00F0FF]'
+                  ? 'border-black bg-black text-neon-cyan'
+                  : 'border-neon-cyan/60 bg-neon-cyan/20 text-neon-cyan'
               }`}
             >
               <Crosshair size={32} weight="bold" className={isReeling ? 'animate-spin' : ''} />

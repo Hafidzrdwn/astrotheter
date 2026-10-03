@@ -12,7 +12,10 @@ import {
   ArrowsClockwise,
   Crosshair,
   Radioactive,
-  DeviceMobile
+  DeviceMobile,
+  Robot,
+  WifiHigh,
+  Wrench
 } from '@phosphor-icons/react'
 import { type ControllerInputPayload } from '../types/network'
 import {
@@ -29,6 +32,8 @@ export interface HostLobbyViewProps {
   roomId: string
   player1Connected: boolean
   player2Connected: boolean
+  simulateP2: boolean
+  onToggleSimulateP2: () => void
   latestInputs: {
     1: ControllerInputPayload | null
     2: ControllerInputPayload | null
@@ -41,13 +46,37 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
   roomId,
   player1Connected,
   player2Connected,
+  simulateP2,
+  onToggleSimulateP2,
   latestInputs,
   onStartGame,
   regenerateRoom
 }) => {
   const { t } = useLanguage()
   const [copied, setCopied] = useState(false)
-  const controllerUrl = `${window.location.origin}/controller?room=${roomId}`
+
+  // Configurable host IP for phone Wi-Fi access (Default to detected Wi-Fi IP: 192.168.100.4)
+  const [hostIp, setHostIp] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('astrotether_host_ip')
+      if (saved) return saved
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        return '192.168.100.4'
+      }
+      return window.location.hostname
+    }
+    return '192.168.100.4'
+  })
+
+  const [showIpEdit, setShowIpEdit] = useState(false)
+  const port = typeof window !== 'undefined' && window.location.port ? `:${window.location.port}` : ''
+  const protocol = typeof window !== 'undefined' ? window.location.protocol : 'http:'
+  const controllerUrl = `${protocol}//${hostIp}${port}/controller?room=${roomId}`
+
+  const handleUpdateIp = (newIp: string) => {
+    setHostIp(newIp)
+    localStorage.setItem('astrotether_host_ip', newIp)
+  }
 
   // Track previous connection states to trigger audio cues on player joins
   const prevP1Ref = useRef(player1Connected)
@@ -61,21 +90,22 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
   }, [player1Connected])
 
   useEffect(() => {
-    if (!prevP2Ref.current && player2Connected) {
+    if (!prevP2Ref.current && (player2Connected || simulateP2)) {
       playPlayerJoinSound(2)
     }
-    prevP2Ref.current = player2Connected
-  }, [player2Connected])
+    prevP2Ref.current = player2Connected || simulateP2
+  }, [player2Connected, simulateP2])
 
   // Co-op 2-second synchronized "Reel" hold mechanic
   const [holdProgress, setHoldProgress] = useState(0) // 0 to 100%
   const [countdown, setCountdown] = useState<number | null>(null) // 3, 2, 1, 0 (Launch)
   const holdIntervalRef = useRef<number | null>(null)
 
-  const bothConnected = player1Connected && player2Connected
+  const effectiveP2Connected = player2Connected || simulateP2
+  const bothConnected = player1Connected && effectiveP2Connected
   const p1Reeling = Boolean(latestInputs[1]?.re)
-  const p2Reeling = Boolean(latestInputs[2]?.re)
-  const bothReeling = bothConnected && p1Reeling && p2Reeling
+  const p2Reeling = Boolean(latestInputs[2]?.re) || (simulateP2 && p1Reeling) // Auto-mirror reel if P2 is simulated
+  const bothReeling = bothConnected && p1Reeling && (simulateP2 || p2Reeling)
 
   // Monitor simultaneous reel holding
   useEffect(() => {
@@ -97,13 +127,11 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
               window.clearInterval(holdIntervalRef.current)
               holdIntervalRef.current = null
             }
-            // Trigger 3-second countdown
             startCountdown()
           }
         }, 50)
       }
     } else {
-      // Released early -> reset progress
       if (holdIntervalRef.current) {
         window.clearInterval(holdIntervalRef.current)
         holdIntervalRef.current = null
@@ -157,8 +185,19 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
           <AstroLogo size={46} showText />
         </div>
 
-        {/* Room, Language Selector, and Controls */}
-        <div className="flex items-center gap-3">
+        {/* Room, Quick Desktop Sandbox, Language Selector, and Controls */}
+        <div className="flex items-center flex-wrap gap-2.5">
+          {/* Quick Desktop Test Sandbox (Solo Bypass) */}
+          <button
+            type="button"
+            onClick={onStartGame}
+            className="flex items-center gap-2 rounded-xl border border-[#FFE600]/40 bg-[#FFE600]/15 px-3 py-2 text-xs font-bold font-['Orbitron'] text-[#FFE600] transition hover:bg-[#FFE600]/25 hover:shadow-[0_0_15px_rgba(255,230,0,0.4)] active:scale-95"
+            title="Instant desktop test with WASD and Arrow Keys"
+          >
+            <GameController size={18} weight="duotone" />
+            <span>{t('quickSandboxBtn')}</span>
+          </button>
+
           {/* Language Switcher (EN | ID) */}
           <LanguageSelector />
 
@@ -182,10 +221,10 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
           <Link
             to={`/controller?room=${roomId}`}
             target="_blank"
-            className="flex items-center gap-2 rounded-xl border border-[#00F0FF]/40 bg-[#00F0FF]/15 px-3.5 py-2 text-xs font-semibold text-[#00F0FF] transition hover:bg-[#00F0FF]/25 hover:shadow-[0_0_15px_rgba(0,240,255,0.4)]"
+            className="flex items-center gap-2 rounded-xl border border-[#00F0FF]/40 bg-[#00F0FF]/15 px-3 py-2 text-xs font-semibold text-[#00F0FF] transition hover:bg-[#00F0FF]/25 hover:shadow-[0_0_15px_rgba(0,240,255,0.4)]"
           >
             <DeviceMobile size={18} />
-            <span className="hidden sm:inline">Test Controller</span>
+            <span className="hidden sm:inline">Open Tab</span>
           </Link>
         </div>
       </header>
@@ -200,7 +239,7 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
               {t('scanTitle')}
             </h2>
           </div>
-          <p className="text-xs text-gray-400 text-center mb-6 max-w-xs font-['Space_Grotesk'] leading-relaxed">
+          <p className="text-xs text-gray-400 text-center mb-5 max-w-xs font-['Space_Grotesk'] leading-relaxed">
             {t('scanSubtitle')}
           </p>
 
@@ -233,8 +272,50 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
             </div>
           </div>
 
+          {/* Wi-Fi LAN IP Configuration Helper */}
+          <div className="mt-4 w-full max-w-sm rounded-xl border border-white/10 bg-white/5 p-2.5 text-xs">
+            <div className="flex items-center justify-between text-[11px] text-gray-300 font-mono mb-1">
+              <span className="flex items-center gap-1.5 text-emerald-400">
+                <WifiHigh size={14} />
+                Wi-Fi IP for Phone:
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowIpEdit(!showIpEdit)}
+                className="text-[#00F0FF] hover:underline flex items-center gap-1"
+              >
+                <Wrench size={12} />
+                {showIpEdit ? 'Done' : 'Change IP'}
+              </button>
+            </div>
+
+            {showIpEdit ? (
+              <div className="flex items-center gap-2 mt-2">
+                <input
+                  type="text"
+                  value={hostIp}
+                  onChange={(e) => handleUpdateIp(e.target.value)}
+                  placeholder="e.g. 192.168.100.4"
+                  className="w-full rounded-lg bg-black/60 px-2 py-1 text-xs font-mono text-white border border-white/20 outline-none focus:border-[#00F0FF]"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleUpdateIp('192.168.100.4')}
+                  className="rounded bg-white/10 px-2 py-1 text-[10px] text-gray-300 hover:bg-white/20 shrink-0"
+                >
+                  Wi-Fi Default
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between text-[11px] font-mono text-gray-400">
+                <span className="text-[#00F0FF] font-bold">{hostIp}{port}</span>
+                <span className="text-[10px] text-gray-500">Scan QR connects directly!</span>
+              </div>
+            )}
+          </div>
+
           {/* Copy URL Input */}
-          <div className="mt-6 flex w-full max-w-sm items-center gap-2 rounded-xl border border-white/10 bg-black/50 p-2">
+          <div className="mt-3 flex w-full max-w-sm items-center gap-2 rounded-xl border border-white/10 bg-black/50 p-2">
             <input
               type="text"
               readOnly
@@ -259,11 +340,21 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
             <div className="flex items-center gap-2">
               <Radioactive size={18} className="text-[#00F0FF]" />
               <span className="font-['Orbitron'] text-xs font-bold tracking-wider text-gray-300">
-                {bothConnected ? t('autoStartReady') : t('lobbyTagline')}
+                {bothConnected
+                  ? simulateP2
+                    ? t('soloDevActive')
+                    : t('autoStartReady')
+                  : t('lobbyTagline')}
               </span>
             </div>
             <span className="text-xs font-['Rajdhani'] font-bold text-[#FFE600]">
-              {bothConnected ? '2/2 CONNECTED' : player1Connected || player2Connected ? '1/2 CONNECTED' : '0/2 CONNECTED'}
+              {bothConnected
+                ? simulateP2
+                  ? 'P1 READY + P2 SIMULATED'
+                  : '2/2 CONNECTED'
+                : player1Connected
+                ? '1/2 CONNECTED (P1 READY)'
+                : 'WAITING FOR PLAYERS'}
             </span>
           </div>
 
@@ -321,24 +412,28 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
               </div>
             </div>
 
-            {/* Slot 2: Player 2 (Pink - Beta Pod) */}
+            {/* Slot 2: Player 2 (Pink - Beta Pod) with SOLO DEV SIMULATE TOGGLE */}
             <div
               className={`rounded-2xl border p-5 transition-all duration-300 relative overflow-hidden backdrop-blur-xl ${
-                player2Connected
+                player2Connected || simulateP2
                   ? 'border-[#FF2A85]/60 bg-[#FF2A85]/10 shadow-[0_0_25px_rgba(255,42,133,0.3)]'
-                  : 'border-white/10 bg-white/5 opacity-80'
+                  : 'border-white/10 bg-white/5'
               }`}
             >
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <div
                     className={`flex h-12 w-12 items-center justify-center rounded-xl border ${
-                      player2Connected
+                      player2Connected || simulateP2
                         ? 'border-[#FF2A85] bg-[#FF2A85]/20 text-[#FF2A85] shadow-[0_0_15px_rgba(255,42,133,0.5)]'
                         : 'border-white/10 bg-white/5 text-gray-500'
                     }`}
                   >
-                    <ShieldCheck size={24} weight="duotone" />
+                    {simulateP2 ? (
+                      <Robot size={24} weight="duotone" className="text-[#FF2A85] animate-pulse" />
+                    ) : (
+                      <ShieldCheck size={24} weight="duotone" />
+                    )}
                   </div>
                   <div>
                     <h3 className="font-['Orbitron'] text-sm font-black text-white">
@@ -352,24 +447,51 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
 
                 <span
                   className={`rounded-full px-3 py-1 text-[11px] font-bold flex items-center gap-1.5 ${
-                    player2Connected
+                    player2Connected || simulateP2
                       ? 'bg-[#FF2A85]/20 text-[#FF2A85]'
                       : 'bg-white/10 text-gray-400'
                   }`}
                 >
                   <span
                     className={`h-2 w-2 rounded-full ${
-                      player2Connected ? 'bg-[#FF2A85] animate-ping' : 'bg-gray-500 animate-pulse'
+                      player2Connected || simulateP2 ? 'bg-[#FF2A85] animate-ping' : 'bg-gray-500 animate-pulse'
                     }`}
                   />
-                  {player2Connected ? t('readyToFly') : t('waitingCopilot')}
+                  {player2Connected
+                    ? t('readyToFly')
+                    : simulateP2
+                    ? t('simulatedP2Ready')
+                    : t('waitingCopilot')}
                 </span>
               </div>
 
+              {/* Solo Test Simulation Toggle Button */}
+              {!player2Connected && (
+                <div className="mb-3">
+                  <button
+                    type="button"
+                    onClick={onToggleSimulateP2}
+                    className={`w-full py-2 px-3 rounded-xl border flex items-center justify-center gap-2 text-xs font-['Orbitron'] font-bold transition-all ${
+                      simulateP2
+                        ? 'border-[#FF2A85] bg-[#FF2A85]/30 text-white shadow-[0_0_15px_rgba(255,42,133,0.5)]'
+                        : 'border-white/20 bg-white/10 text-gray-300 hover:bg-white/20 hover:text-white'
+                    }`}
+                  >
+                    <Robot size={16} />
+                    <span>{simulateP2 ? 'Disable Co-Pilot Bot' : t('simulateP2Btn')}</span>
+                  </button>
+                  <p className="text-[10px] text-gray-400 font-['Space_Grotesk'] mt-1 text-center">
+                    {simulateP2
+                      ? 'P2 is ready! Control it via Arrow Keys on laptop or let AI assist.'
+                      : 'Alone? Enable this to test with 1 phone + laptop keyboard!'}
+                  </p>
+                </div>
+              )}
+
               {/* Status footer inside card */}
               <div className="flex items-center justify-between border-t border-white/10 pt-2 text-[11px] font-mono text-gray-400">
-                <span>SIGNAL: {player2Connected ? 'STABLE (60 FPS)' : 'OFFLINE'}</span>
-                <span>{player2Connected ? t('copilotJoined') : 'STANDBY'}</span>
+                <span>SIGNAL: {player2Connected ? 'STABLE (60 FPS)' : simulateP2 ? 'VIRTUAL (60 FPS)' : 'OFFLINE'}</span>
+                <span>{player2Connected ? t('copilotJoined') : simulateP2 ? 'BOT READY' : 'STANDBY'}</span>
               </div>
             </div>
           </div>
@@ -431,9 +553,11 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
               {/* Player 2 Telemetry */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-xs font-['Rajdhani'] font-bold">
-                  <span className="text-[#FF2A85]">P2 {t('steerLabel')}</span>
+                  <span className="text-[#FF2A85]">
+                    {simulateP2 ? 'P2 BOT / KEYBOARD STEER' : `P2 ${t('steerLabel')}`}
+                  </span>
                   <span className="text-gray-300 font-mono">
-                    {latestInputs[2]?.st !== undefined ? `${latestInputs[2].st.toFixed(2)}` : '0.00'}
+                    {latestInputs[2]?.st !== undefined ? `${latestInputs[2].st.toFixed(2)}` : simulateP2 ? 'AUTO' : '0.00'}
                   </span>
                 </div>
                 {/* Steer Bar (-1 to +1) */}
@@ -449,16 +573,18 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
                 </div>
 
                 <div className="flex items-center justify-between text-xs font-['Rajdhani'] font-bold pt-1">
-                  <span className="text-[#FF2A85]">P2 {t('thrustLabel')}</span>
+                  <span className="text-[#FF2A85]">
+                    {simulateP2 ? 'P2 BOT / KEYBOARD THRUST' : `P2 ${t('thrustLabel')}`}
+                  </span>
                   <span className="text-gray-300 font-mono">
-                    {Math.round((latestInputs[2]?.th || 0) * 100)}%
+                    {simulateP2 ? 'ACTIVE' : `${Math.round((latestInputs[2]?.th || 0) * 100)}%`}
                   </span>
                 </div>
                 {/* Thrust Bar (0 to 100%) */}
                 <div className="h-3 w-full rounded-full bg-black/60 border border-white/10 overflow-hidden p-0.5">
                   <div
                     className="h-full bg-gradient-to-r from-[#FF2A85]/50 to-[#FF2A85] transition-all duration-75 rounded-full"
-                    style={{ width: `${(latestInputs[2]?.th || 0) * 100}%` }}
+                    style={{ width: `${simulateP2 ? 70 : (latestInputs[2]?.th || 0) * 100}%` }}
                   />
                 </div>
               </div>
@@ -479,10 +605,12 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
               </div>
               <div>
                 <h4 className="font-['Orbitron'] text-xs font-black tracking-wider text-white">
-                  {t('autoStartReady')}
+                  {bothConnected ? t('autoStartReady') : 'STANDBY'}
                 </h4>
                 <p className="text-xs text-gray-400 font-['Space_Grotesk']">
-                  {t('autoStartInstruction')}
+                  {simulateP2
+                    ? 'Solo mode: Hold REEL on your phone for 2s, or click Start Mission!'
+                    : t('autoStartInstruction')}
                 </p>
               </div>
             </div>
@@ -512,9 +640,9 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
                     type="button"
                     onClick={onStartGame}
                     disabled={!bothConnected}
-                    className="rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-xs font-['Orbitron'] font-bold text-gray-300 hover:bg-white/20 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                    className="rounded-xl border border-white/20 bg-gradient-to-r from-[#00F0FF] to-[#FF2A85] px-5 py-2.5 text-xs font-['Orbitron'] font-black text-black hover:brightness-110 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition shadow-lg"
                   >
-                    Start Game
+                    Start Mission
                   </button>
                 </div>
               )}
@@ -530,7 +658,7 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
             {countdown > 0 ? (
               <>
                 <span className="font-['Orbitron'] text-xs font-black tracking-widest text-[#00F0FF] mb-4">
-                  {t('launchingCountdown')}
+                  WARP CORE CHARGING
                 </span>
                 <div className="font-['Orbitron'] text-9xl md:text-[14rem] font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-[#00F0FF] to-[#FF2A85] drop-shadow-[0_0_60px_rgba(0,240,255,0.8)] animate-scale-up">
                   {countdown}
@@ -563,10 +691,10 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
           <span>•</span>
           <span className="text-[#00F0FF]">{t('p1SlotTitle')}</span>
           <span>•</span>
-          <span className="text-[#FF2A85]">{t('p2SlotTitle')}</span>
+          <span className="text-[#FF2A85]">{simulateP2 ? 'P2 (Simulated)' : t('p2SlotTitle')}</span>
         </div>
         <div>
-          <span>{t('brandSubtitle')}</span>
+          <span>{simulateP2 ? t('soloDevActive') : t('brandSubtitle')}</span>
         </div>
       </footer>
     </div>

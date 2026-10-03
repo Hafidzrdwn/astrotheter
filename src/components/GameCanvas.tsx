@@ -40,6 +40,7 @@ export interface GameCanvasProps {
   onCollisionFeedback?: (player: 1 | 2) => void
   onStageCompleted?: (result: CoupleSynergyResult) => void
   onReturnToLobby?: () => void
+  isP2Simulated?: boolean
 }
 
 export const GameCanvas: React.FC<GameCanvasProps> = ({
@@ -48,7 +49,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   onOverstretch,
   onCollisionFeedback,
   onStageCompleted,
-  onReturnToLobby
+  onReturnToLobby,
+  isP2Simulated = false
 }) => {
   const { t } = useLanguage()
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -262,17 +264,43 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       if (keys['KeyS']) p1Reel = true
       if (keys['Space']) p1Boost = true
 
-      // P2 Inputs: Arrow Keys fallback
+      // P2 Inputs: Mobile controller, Keyboard Arrow keys, or Solo Bot Auto-Pilot
       let p2Steer = inputs[2]?.st ?? 0
       let p2Thrust = inputs[2]?.th ?? 0
       let p2Reel = inputs[2]?.re ?? false
       let p2Boost = inputs[2]?.bo ?? false
+
+      const isArrowKeyPressed =
+        Boolean(keys['ArrowLeft'] || keys['ArrowRight'] || keys['ArrowUp'] || keys['ArrowDown'] || keys['Enter'])
 
       if (keys['ArrowLeft']) p2Steer = -1.0
       if (keys['ArrowRight']) p2Steer = 1.0
       if (keys['ArrowUp']) p2Thrust = 1.0
       if (keys['ArrowDown']) p2Reel = true
       if (keys['Enter']) p2Boost = true
+
+      // Intelligent Co-Pilot Auto-Assist when simulated and not manually overridden
+      if (isP2Simulated && !inputs[2] && !isArrowKeyPressed) {
+        const curDist = Math.hypot(ship2.position.x - ship1.position.x, ship2.position.y - ship1.position.y)
+        if (curDist > 250) {
+          // Reel in to prevent overstretch
+          p2Reel = true
+          const angleToP1 = Math.atan2(ship1.position.y - ship2.position.y, ship1.position.x - ship2.position.x)
+          const angleDiff = Math.sin(angleToP1 - ship2.angle)
+          p2Steer = Math.max(-1, Math.min(1, angleDiff * 2))
+          p2Thrust = 0.4
+        } else if (curDist < 130) {
+          // Push slightly away to maintain tension
+          p2Thrust = 0.25
+        } else {
+          // Orbitally align towards Starlight Core to shepherd it
+          const core = levelManager.objects.starlightCore
+          const angleToCore = Math.atan2(core.position.y - ship2.position.y, core.position.x - ship2.position.x)
+          const angleDiff = Math.sin(angleToCore - ship2.angle)
+          p2Steer = Math.max(-0.8, Math.min(0.8, angleDiff * 1.5))
+          p2Thrust = p1Thrust > 0.1 ? 0.35 : 0.15
+        }
+      }
 
       // Procedural Audio: Update continuous engine hum pitch & gain
       if (!isStageDone) {

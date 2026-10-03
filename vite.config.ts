@@ -8,4 +8,8 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  server: {
+    host: true, // Exposes server to local network (0.0.0.0) so phone can access via Wi-Fi IP
+    port: 5173,
+  },
 })

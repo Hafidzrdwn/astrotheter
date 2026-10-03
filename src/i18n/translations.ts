@@ -30,6 +30,15 @@ export interface TranslationDictionary {
   autoStartInstruction: string
   launchingCountdown: string
 
+  // Solo Dev & LAN IP Settings
+  hostAddressLabel: string
+  hostAddressHint: string
+  simulateP2Btn: string
+  simulatedP2Ready: string
+  quickSandboxBtn: string
+  soloDevActive: string
+  p2AutoAssist: string
+
   // Controller Cockpit
   controllerWelcome: string
   connectingToHost: string
@@ -112,6 +121,15 @@ export const translations: Record<Language, TranslationDictionary> = {
     autoStartInstruction: 'Both players hold the REEL button together for 2 seconds to start!',
     launchingCountdown: 'Blasting off in',
 
+    // Solo Dev & LAN IP Settings
+    hostAddressLabel: 'Phone Access IP / Hostname',
+    hostAddressHint: 'Change this if your phone cannot reach localhost (e.g. your Wi-Fi IP: 192.168.100.4:5173)',
+    simulateP2Btn: 'Simulate Co-Pilot (Solo Test)',
+    simulatedP2Ready: 'Simulated Co-Pilot (Ready)',
+    quickSandboxBtn: 'Quick Desktop Sandbox (Keyboard Only)',
+    soloDevActive: 'Solo Test Active (P2 Assisted)',
+    p2AutoAssist: 'Co-Pilot Auto-Assist Active',
+
     // Controller Cockpit
     controllerWelcome: 'AstroTether Mobile Cockpit',
     connectingToHost: 'Connecting to big screen...',
@@ -193,6 +211,15 @@ export const translations: Record<Language, TranslationDictionary> = {
     autoStartInstruction: 'Tahan tombol REEL barengan selama 2 detik buat mulai meluncur!',
     launchingCountdown: 'Meluncur dalam',
 
+    // Solo Dev & LAN IP Settings
+    hostAddressLabel: 'Alamat IP Akses HP (Jaringan Wi-Fi)',
+    hostAddressHint: 'Ubah ke IP Wi-Fi laptop jika HP tidak bisa buka localhost (misal: 192.168.100.4:5173)',
+    simulateP2Btn: 'Simulasikan Co-Pilot (Tes Solo)',
+    simulatedP2Ready: 'Co-Pilot Simulasi (Siap)',
+    quickSandboxBtn: 'Tes Cepat di Laptop (Hanya Keyboard)',
+    soloDevActive: 'Mode Uji Solo Aktif (P2 Otomatis)',
+    p2AutoAssist: 'Bantuan Co-Pilot Otomatis Aktif',
+
     // Controller Cockpit
     controllerWelcome: 'Kokpit Ponsel AstroTether',
     connectingToHost: 'Menghubungkan ke layar laptop...',
@@ -238,7 +265,7 @@ export const translations: Record<Language, TranslationDictionary> = {
     harmonicDuoQuote: 'Kompak parah! Manuver kalian mulus banget kayak punya kontak batin di luar angkasa.',
     tetherLoversTitle: 'Kompak Romantis (Tether Lovers)',
     tetherLoversQuote: 'Iramanya pas dan saling melengkapi. Luar angkasa aja iri lihat kalian berdua!',
-    tugOfWarTitle: 'Tarik Ulur Asik (Tug-of-War Pair)',
+    tugOfWarTitle: 'Tug-of-War Pair',
     tugOfWarQuote: 'Sempat saling tarik-tarikan dan sedikit heboh, tapi pada akhirnya kalian kompak sampai garis finish.',
     chaosCoupleTitle: 'Pasangan Bar-Bar (Chaos Couple)',
     chaosCoupleQuote: 'Suka-suka nyetir dan penuh tabrakan seru! Gak apa-apa oleng dikit yang penting ketawa bareng.'

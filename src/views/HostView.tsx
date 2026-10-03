@@ -5,7 +5,8 @@ import {
   Sparkle,
   Broadcast,
   ArrowsClockwise,
-  ArrowLeft
+  ArrowLeft,
+  Robot
 } from '@phosphor-icons/react'
 import { useHostPeer } from '../hooks/useHostPeer'
 import { HostLobbyView } from './HostLobbyView'
@@ -19,6 +20,7 @@ export type HostGameState = 'LOBBY' | 'PLAYING'
 export const HostView: React.FC = () => {
   const { t } = useLanguage()
   const [gameState, setGameState] = useState<HostGameState>('LOBBY')
+  const [simulateP2, setSimulateP2] = useState<boolean>(false)
 
   const {
     roomId,
@@ -47,8 +49,16 @@ export const HostView: React.FC = () => {
         roomId={roomId}
         player1Connected={player1Connected}
         player2Connected={player2Connected}
+        simulateP2={simulateP2}
+        onToggleSimulateP2={() => setSimulateP2(!simulateP2)}
         latestInputs={latestInputs}
-        onStartGame={() => setGameState('PLAYING')}
+        onStartGame={() => {
+          // If starting without P2 connected, auto-enable P2 simulation
+          if (!player2Connected) {
+            setSimulateP2(true)
+          }
+          setGameState('PLAYING')
+        }}
         regenerateRoom={regenerateRoom}
       />
     )
@@ -70,6 +80,13 @@ export const HostView: React.FC = () => {
         {/* Room, Network Telemetry, and Language Switcher */}
         <div className="flex items-center gap-3">
           <LanguageSelector />
+
+          {simulateP2 && (
+            <div className="flex items-center gap-1.5 rounded-xl border border-[#FF2A85]/40 bg-[#FF2A85]/15 px-3 py-1.5 text-xs font-bold text-[#FF2A85] font-['Orbitron']">
+              <Robot size={16} />
+              <span>CO-PILOT BOT ASSIST</span>
+            </div>
+          )}
 
           <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 backdrop-blur-md">
             <Broadcast size={18} className="animate-pulse text-[#00F0FF]" />
@@ -106,6 +123,7 @@ export const HostView: React.FC = () => {
         {/* Interactive Matter.js 2D Canvas */}
         <GameCanvas
           getLatestInputs={getLatestInputs}
+          isP2Simulated={simulateP2}
           onCollisionFeedback={(player) => {
             sendFeedbackToPlayer(player, {
               e: 'COLLISION',
@@ -151,11 +169,11 @@ export const HostView: React.FC = () => {
           </div>
           <div className="flex items-center gap-4 text-xs font-mono text-gray-400">
             <span className={player1Connected ? 'text-[#00F0FF]' : 'text-gray-600'}>
-              P1: {player1Connected ? 'ONLINE' : 'OFFLINE'}
+              P1: {player1Connected ? 'ONLINE' : 'KEYBOARD (WASD)'}
             </span>
             <span>•</span>
-            <span className={player2Connected ? 'text-[#FF2A85]' : 'text-gray-600'}>
-              P2: {player2Connected ? 'ONLINE' : 'OFFLINE'}
+            <span className={player2Connected ? 'text-[#FF2A85]' : simulateP2 ? 'text-[#FF2A85] font-bold' : 'text-gray-600'}>
+              P2: {player2Connected ? 'ONLINE' : simulateP2 ? 'SIMULATED (ARROW KEYS / AI)' : 'OFFLINE'}
             </span>
           </div>
         </div>
@@ -171,10 +189,10 @@ export const HostView: React.FC = () => {
           <span>•</span>
           <span className="text-[#00F0FF]">P1 Pilot (Cyan)</span>
           <span>•</span>
-          <span className="text-[#FF2A85]">P2 Pilot (Pink)</span>
+          <span className="text-[#FF2A85]">{simulateP2 ? 'P2 (Simulated Bot)' : 'P2 Pilot (Pink)'}</span>
         </div>
         <div>
-          <span>{t('brandSubtitle')}</span>
+          <span>{simulateP2 ? t('soloDevActive') : t('brandSubtitle')}</span>
         </div>
       </footer>
     </div>

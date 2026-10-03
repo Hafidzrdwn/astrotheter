@@ -138,6 +138,7 @@ export const HostView: React.FC = () => {
               message: `${result.title} — ${result.score}% Synergy!`
             })
           }}
+          onReturnToLobby={() => setGameState('LOBBY')}
         />
 
         {/* Arena Bottom Action Controls */}

@@ -4,7 +4,8 @@ import { type ControllerInputPayload } from '../types/network'
 import { LevelManager } from '../game/LevelManager'
 import { useCoupleSynergy, type CoupleSynergyResult } from '../hooks/useCoupleSynergy'
 import { playTone, playWarpLaunchSequence } from '../utils/audio'
-import { Trophy, ArrowsClockwise, Sparkle, Heart } from '@phosphor-icons/react'
+import { SoundFX } from '../utils/SoundFX'
+import { GameOverModal, type FlightPoint } from './GameOverModal'
 
 const { Engine, World, Bodies, Body, Constraint, Events } = Matter
 
@@ -37,6 +38,7 @@ export interface GameCanvasProps {
   onOverstretch?: () => void
   onCollisionFeedback?: (player: 1 | 2) => void
   onStageCompleted?: (result: CoupleSynergyResult) => void
+  onReturnToLobby?: () => void
 }
 
 export const GameCanvas: React.FC<GameCanvasProps> = ({
@@ -44,7 +46,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   onTetherSnap,
   onOverstretch,
   onCollisionFeedback,
-  onStageCompleted
+  onStageCompleted,
+  onReturnToLobby
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -68,8 +71,18 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     resetMetrics
   } = useCoupleSynergy()
 
-  // Victory result state
-  const [completedResult, setCompletedResult] = useState<CoupleSynergyResult | null>(null)
+  // Game over modal state (9:16 vertical card)
+  const [gameOverResult, setGameOverResult] = useState<{
+    outcome: 'VICTORY' | 'DEFEAT'
+    result: CoupleSynergyResult
+  } | null>(null)
+
+  // Rematch trigger counter (resets game world cleanly without reloading page or dropping WebRTC)
+  const [rematchCount, setRematchCount] = useState(0)
+
+  // Recorded flight path trails for post-game route mapping
+  const ship1PathRef = useRef<FlightPoint[]>([])
+  const ship2PathRef = useRef<FlightPoint[]>([])
 
   // Keyboard fallback state for desktop testing
   const keysRef = useRef<{ [key: string]: boolean }>({})
@@ -97,7 +110,13 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
+    // Reset telemetry metrics & flight trails for fresh match
     resetMetrics()
+    ship1PathRef.current = []
+    ship2PathRef.current = []
+
+    // Start procedural engine hum
+    SoundFX.startEngineHum()
 
     // Setup Canvas dimensions
     let width = (canvas.width = container.clientWidth || 900)
@@ -110,7 +129,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     }
     window.addEventListener('resize', handleResize)
 
-    // 1. Matter.js Physics Engine Setup (Zero Gravity Space)
+    // 1. Matter.js Physics Engine Setup (Zero Gravity Space per PRD Section 5)
     const engine = Engine.create({
       gravity: { x: 0, y: 0, scale: 0 }
     })
@@ -155,7 +174,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     const levelManager = new LevelManager(world, width / 2, height / 2, {
       onShipCollision: (player, _force) => {
         recordCollision()
-        playTone(180, 'sawtooth', 0.15, 0.25)
+        SoundFX.playCollisionHit(true)
         onCollisionFeedback?.(player)
       },
       onLaserDeactivated: () => {
@@ -165,9 +184,11 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       onCoreDelivered: () => {
         if (isStageDone) return
         isStageDone = true
+        SoundFX.stopEngineHum()
+        SoundFX.playSuccessArpeggio()
         playWarpLaunchSequence()
         const result = evaluateFinalSynergy()
-        setCompletedResult(result)
+        setGameOverResult({ outcome: 'VICTORY', result })
         onStageCompleted?.(result)
       }
     })
@@ -203,6 +224,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     let frameCount = 0
     let lastFpsTime = lastTime
     let criticalWarningTriggered = false
+    let wasReelOrBoostActive = false
+    let recordCounter = 0
 
     const renderLoop = (time: number) => {
       animId = requestAnimationFrame(renderLoop)
@@ -248,6 +271,18 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       if (keys['ArrowUp']) p2Thrust = 1.0
       if (keys['ArrowDown']) p2Reel = true
       if (keys['Enter']) p2Boost = true
+
+      // Procedural Audio: Update continuous engine hum pitch & gain
+      if (!isStageDone) {
+        SoundFX.updateEngineHum(p1Thrust, p2Thrust)
+      }
+
+      // Slingshot / Boost Sound Trigger
+      const isReelOrBoostActive = p1Reel || p2Reel || p1Boost || p2Boost
+      if (isReelOrBoostActive && !wasReelOrBoostActive && !isStageDone) {
+        SoundFX.playBoostSlingshot()
+      }
+      wasReelOrBoostActive = isReelOrBoostActive
 
       // 3. Apply Forces to Ship 1
       const THRUST_MAG = 0.0025 * (p1Boost ? 1.8 : 1.0)
@@ -336,8 +371,31 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       const distance = Math.hypot(dx, dy)
       const strainPercent = Math.min(100, Math.round(((distance - 160) / (440 - 160)) * 100))
 
+      // Procedural Audio: Tether strain accelerating ping
+      if (!isStageDone) {
+        SoundFX.updateTetherStrain(distance, 420)
+      }
+
+      // Record flight path trails every 8 frames for post-game route mapping
+      recordCounter++
+      if (recordCounter % 8 === 0 && !isStageDone) {
+        ship1PathRef.current.push({ x: ship1.position.x, y: ship1.position.y })
+        ship2PathRef.current.push({ x: ship2.position.x, y: ship2.position.y })
+      }
+
       // Record couple synergy metric telemetry
       recordTick(distance, p1Thrust > 0.1 || p1Steer !== 0, p2Thrust > 0.1 || p2Steer !== 0)
+
+      // Critical Tether Snap Defeat Check (> 430px elongation)
+      if (distance > 430 && !isStageDone) {
+        isStageDone = true
+        SoundFX.stopEngineHum()
+        SoundFX.playTetherSnap()
+        World.remove(world, tether)
+        onTetherSnap?.()
+        const result = evaluateFinalSynergy()
+        setGameOverResult({ outcome: 'DEFEAT', result })
+      }
 
       let status: 'OPTIMAL' | 'STRETCHING' | 'CRITICAL' = 'OPTIMAL'
       if (distance > 380) {
@@ -422,10 +480,10 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         ctx.fill()
       })
 
-      // Render Level Objects: Starlight Core, Warp Gate, Asteroids, Laser Barrier, Vortex
+      // Render Level Objects: Warp Gate, Asteroids, Laser Gate, Starlight Core, Vortex
       levelManager.render(ctx, time)
 
-      // Render Thruster Particles
+      // 11. Render Particles (Thrusters)
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i]
         p.x += p.vx
@@ -439,295 +497,252 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
         ctx.fillStyle = p.color
         ctx.globalAlpha = p.life * 0.8
-        ctx.shadowColor = p.color
-        ctx.shadowBlur = 8
         ctx.beginPath()
         ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2)
         ctx.fill()
-        ctx.shadowBlur = 0
-        ctx.globalAlpha = 1
       }
+      ctx.globalAlpha = 1.0
 
-      // Render Sparks (Critical Strain)
+      // 12. Render Dynamic Tether Rope (Strain-Dependent Color & Glow)
+      ctx.beginPath()
+      ctx.moveTo(ship1.position.x, ship1.position.y)
+      ctx.lineTo(ship2.position.x, ship2.position.y)
+
+      if (status === 'CRITICAL') {
+        const isBlink = Math.floor(time / 100) % 2 === 0
+        ctx.strokeStyle = isBlink ? '#FF0033' : '#FF2A85'
+        ctx.lineWidth = 4.5
+        ctx.shadowColor = '#FF0033'
+        ctx.shadowBlur = 24
+      } else if (status === 'STRETCHING') {
+        const pulse = 0.7 + Math.sin(time / 150) * 0.3
+        ctx.strokeStyle = `rgba(255, 230, 0, ${pulse})`
+        ctx.lineWidth = 3.5
+        ctx.shadowColor = '#FFE600'
+        ctx.shadowBlur = 16
+      } else {
+        ctx.strokeStyle = '#00F0FF'
+        ctx.lineWidth = 2.5
+        ctx.shadowColor = '#00F0FF'
+        ctx.shadowBlur = 10
+      }
+      ctx.stroke()
+      ctx.shadowBlur = 0
+
+      // Render Tension Energy Pulse Node at Midpoint
+      const pulseT = (Math.sin(time / 200) + 1) / 2
+      const pulseX = ship1.position.x + dx * 0.5
+      const pulseY = ship1.position.y + dy * 0.5
+      ctx.fillStyle = status === 'CRITICAL' ? '#FF2A85' : '#00F0FF'
+      ctx.beginPath()
+      ctx.arc(pulseX, pulseY, 3 + pulseT * 3, 0, Math.PI * 2)
+      ctx.fill()
+
+      // 13. Render Sparks on Critical Strain
       for (let i = sparks.length - 1; i >= 0; i--) {
-        const sp = sparks[i]
-        sp.x += sp.vx
-        sp.y += sp.vy
-        sp.life -= dt / sp.maxLife
+        const s = sparks[i]
+        s.x += s.vx
+        s.y += s.vy
+        s.life -= dt / s.maxLife
 
-        if (sp.life <= 0) {
+        if (s.life <= 0) {
           sparks.splice(i, 1)
           continue
         }
 
-        ctx.fillStyle = '#FFE600'
-        ctx.shadowColor = '#FF2A85'
-        ctx.shadowBlur = 10
-        ctx.fillRect(sp.x, sp.y, 2.5, 2.5)
-        ctx.shadowBlur = 0
+        ctx.fillStyle = Math.random() > 0.5 ? '#FFE600' : '#FFFFFF'
+        ctx.globalAlpha = s.life
+        ctx.beginPath()
+        ctx.arc(s.x, s.y, Math.random() * 2 + 1, 0, Math.PI * 2)
+        ctx.fill()
       }
+      ctx.globalAlpha = 1.0
 
-      // 11. Render Tether Line
-      ctx.save()
-      let tetherColor = '#00F0FF'
-      let tetherWidth = 3
-      let glowBlur = 15
-
-      if (status === 'CRITICAL') {
-        const flash = Math.sin(time * 0.03) > 0
-        tetherColor = flash ? '#FF2A85' : '#FF0033'
-        tetherWidth = 4
-        glowBlur = 25
-      } else if (status === 'STRETCHING') {
-        tetherColor = '#FFE600'
-        tetherWidth = 3
-        glowBlur = 18
-      } else if (isReelActive) {
-        tetherColor = '#00F0FF'
-        tetherWidth = 4
-        glowBlur = 20
-      }
-
-      ctx.strokeStyle = tetherColor
-      ctx.shadowColor = tetherColor
-      ctx.shadowBlur = glowBlur
-      ctx.lineWidth = tetherWidth
-
-      ctx.beginPath()
-      ctx.moveTo(ship1.position.x, ship1.position.y)
-      ctx.lineTo(ship2.position.x, ship2.position.y)
-      ctx.stroke()
-
-      // Draw Energy Node at Center of Tether
-      const tetherMidX = (ship1.position.x + ship2.position.x) / 2
-      const tetherMidY = (ship1.position.y + ship2.position.y) / 2
-      ctx.fillStyle = '#FFFFFF'
-      ctx.shadowColor = tetherColor
-      ctx.shadowBlur = 12
-      ctx.beginPath()
-      ctx.arc(tetherMidX, tetherMidY, 4, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.restore()
-
-      // 12. Render Ship 1: P1 Alpha Pod (Cyan)
+      // 14. Render Ship 1: Player 1 (Alpha Pod - Neon Cyan)
       ctx.save()
       ctx.translate(ship1.position.x, ship1.position.y)
       ctx.rotate(ship1.angle)
 
+      // Ship body glow
       ctx.shadowColor = '#00F0FF'
-      ctx.shadowBlur = 20
+      ctx.shadowBlur = 18
       ctx.fillStyle = '#0B0F19'
       ctx.strokeStyle = '#00F0FF'
       ctx.lineWidth = 2.5
 
-      // Triangular Arrow Hull
+      // Futuristically faceted triangle pod
       ctx.beginPath()
       ctx.moveTo(SHIP_RADIUS + 4, 0)
-      ctx.lineTo(-SHIP_RADIUS + 4, -SHIP_RADIUS + 6)
-      ctx.lineTo(-SHIP_RADIUS + 10, 0)
-      ctx.lineTo(-SHIP_RADIUS + 4, SHIP_RADIUS - 6)
+      ctx.lineTo(-SHIP_RADIUS * 0.75, -SHIP_RADIUS * 0.85)
+      ctx.lineTo(-SHIP_RADIUS * 0.45, 0)
+      ctx.lineTo(-SHIP_RADIUS * 0.75, SHIP_RADIUS * 0.85)
       ctx.closePath()
       ctx.fill()
       ctx.stroke()
 
-      // Cockpit Glow Core
+      // Cockpit dome
       ctx.fillStyle = '#00F0FF'
       ctx.beginPath()
-      ctx.arc(2, 0, 6, 0, Math.PI * 2)
+      ctx.arc(SHIP_RADIUS * 0.2, 0, 5, 0, Math.PI * 2)
       ctx.fill()
+
+      // Tether anchor ring
+      ctx.strokeStyle = '#FFFFFF'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.arc(0, 0, 3, 0, Math.PI * 2)
+      ctx.stroke()
       ctx.restore()
 
-      // 13. Render Ship 2: P2 Beta Pod (Pink)
+      // 15. Render Ship 2: Player 2 (Beta Pod - Neon Pink)
       ctx.save()
       ctx.translate(ship2.position.x, ship2.position.y)
       ctx.rotate(ship2.angle)
 
       ctx.shadowColor = '#FF2A85'
-      ctx.shadowBlur = 20
+      ctx.shadowBlur = 18
       ctx.fillStyle = '#0B0F19'
       ctx.strokeStyle = '#FF2A85'
       ctx.lineWidth = 2.5
 
-      // Futuristic Rounded Hull with Wings
+      // Sleek curved aerodynamic pod
       ctx.beginPath()
       ctx.moveTo(SHIP_RADIUS + 4, 0)
-      ctx.lineTo(-SHIP_RADIUS + 6, -SHIP_RADIUS + 4)
-      ctx.lineTo(-SHIP_RADIUS + 8, 0)
-      ctx.lineTo(-SHIP_RADIUS + 6, SHIP_RADIUS - 4)
+      ctx.quadraticCurveTo(-SHIP_RADIUS * 0.3, -SHIP_RADIUS * 0.9, -SHIP_RADIUS * 0.8, -SHIP_RADIUS * 0.5)
+      ctx.lineTo(-SHIP_RADIUS * 0.5, 0)
+      ctx.lineTo(-SHIP_RADIUS * 0.8, SHIP_RADIUS * 0.5)
+      ctx.quadraticCurveTo(-SHIP_RADIUS * 0.3, SHIP_RADIUS * 0.9, SHIP_RADIUS + 4, 0)
       ctx.closePath()
       ctx.fill()
       ctx.stroke()
 
-      // Core Shield Matrix
+      // Cockpit dome
       ctx.fillStyle = '#FF2A85'
       ctx.beginPath()
-      ctx.arc(2, 0, 6, 0, Math.PI * 2)
+      ctx.arc(SHIP_RADIUS * 0.2, 0, 5, 0, Math.PI * 2)
       ctx.fill()
+
+      // Tether anchor ring
+      ctx.strokeStyle = '#FFFFFF'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.arc(0, 0, 3, 0, Math.PI * 2)
+      ctx.stroke()
       ctx.restore()
 
-      ctx.restore()
+      ctx.restore() // End Camera translation
     }
 
     animId = requestAnimationFrame(renderLoop)
 
-    // Cleanup on unmount
     return () => {
       cancelAnimationFrame(animId)
       window.removeEventListener('resize', handleResize)
       Events.off(engine, 'collisionStart', collisionListener)
-      levelManager.cleanup()
       World.clear(world, false)
       Engine.clear(engine)
+      SoundFX.stopEngineHum()
     }
-  }, [getLatestInputs, onOverstretch, onTetherSnap, onCollisionFeedback, onStageCompleted, recordCollision, recordTick, resetMetrics, evaluateFinalSynergy])
+  }, [rematchCount]) // Depend on rematchCount to trigger clean resets
+
+  const handleRematch = () => {
+    setGameOverResult(null)
+    setRematchCount((prev) => prev + 1)
+  }
 
   return (
-    <div ref={containerRef} className="relative w-full h-[540px] rounded-3xl overflow-hidden bg-[#070A12] border border-white/10 shadow-2xl">
-      {/* 2D Canvas */}
-      <canvas ref={canvasRef} className="w-full h-full block" />
+    <div
+      ref={containerRef}
+      className="relative flex-1 w-full min-h-[500px] h-[580px] rounded-2xl overflow-hidden bg-[#060911] border border-white/10 shadow-2xl select-none"
+    >
+      <canvas ref={canvasRef} className="block w-full h-full cursor-crosshair" />
 
-      {/* Top Left Live Telemetry HUD */}
-      <div className="pointer-events-none absolute top-4 left-4 z-20 flex flex-col gap-1.5 rounded-2xl border border-white/10 bg-[#0B0F19]/85 backdrop-blur-md px-4 py-2.5 text-xs font-mono shadow-lg">
-        <div className="flex items-center gap-2">
+      {/* Top Telemetry HUD Overlay */}
+      <div className="pointer-events-none absolute top-4 left-4 right-4 flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
+        {/* Tether Status Badge */}
+        <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#0B0F19]/80 backdrop-blur-md px-3 py-2 shadow-lg">
           <span
             className={`h-2.5 w-2.5 rounded-full ${
-              telemetry.status === 'OPTIMAL'
-                ? 'bg-[#00F0FF] animate-pulse'
+              telemetry.status === 'CRITICAL'
+                ? 'bg-red-500 animate-ping'
                 : telemetry.status === 'STRETCHING'
-                ? 'bg-[#FFE600]'
-                : 'bg-[#FF2A85] animate-ping'
+                ? 'bg-yellow-400'
+                : 'bg-emerald-400'
             }`}
           />
-          <span className="font-['Orbitron'] font-bold text-white text-[11px]">
-            TETHER: {telemetry.distance}px
+          <span className="font-['Orbitron'] text-[11px] font-bold text-gray-200">
+            TETHER: {telemetry.distance}px ({telemetry.strainPercent}%)
           </span>
           <span
-            className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-              telemetry.status === 'OPTIMAL'
-                ? 'bg-[#00F0FF]/20 text-[#00F0FF]'
+            className={`rounded px-1.5 py-0.5 text-[10px] font-black ${
+              telemetry.status === 'CRITICAL'
+                ? 'bg-red-500/20 text-red-400 animate-pulse'
                 : telemetry.status === 'STRETCHING'
-                ? 'bg-[#FFE600]/20 text-[#FFE600]'
-                : 'bg-[#FF2A85]/20 text-[#FF2A85]'
+                ? 'bg-yellow-500/20 text-yellow-300'
+                : 'bg-emerald-500/20 text-emerald-400'
             }`}
           >
             {telemetry.status}
           </span>
         </div>
-        <div className="flex items-center justify-between text-[10px] text-gray-400 gap-4 pt-1 border-t border-white/10">
-          <span>STRAIN: {telemetry.strainPercent}%</span>
-          <span>{telemetry.fps} FPS</span>
-        </div>
-      </div>
 
-      {/* Top Center Mission Objective HUD */}
-      <div className="pointer-events-none absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-4 rounded-2xl border border-white/10 bg-[#0B0F19]/90 backdrop-blur-md px-5 py-2 shadow-xl">
-        <div className="flex items-center gap-2">
-          <Sparkle size={18} className="text-[#FFE600] animate-spin" />
-          <div className="text-left">
-            <span className="block text-[9px] font-['Orbitron'] font-bold text-gray-400">OBJECTIVE</span>
-            <span className="block font-['Rajdhani'] text-xs font-bold text-white">
-              SHEPHERD CORE TO WARP GATE ({telemetry.coreDistanceToWarp}px)
-            </span>
-          </div>
-        </div>
-        <div className="h-6 w-[1px] bg-white/20" />
-        <div className="text-left">
-          <span className="block text-[9px] font-['Orbitron'] font-bold text-gray-400">LASER GATE</span>
+        {/* Live Couple Synergy Meter */}
+        <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-[#0B0F19]/80 backdrop-blur-md px-3 py-2 shadow-lg">
+          <span className="text-gray-400 font-['Space_Grotesk'] text-[11px]">COUPLE SYNERGY:</span>
           <span
-            className={`block font-['Orbitron'] text-xs font-bold ${
-              telemetry.laserDeactivated ? 'text-emerald-400' : 'text-[#FF2A85]'
+            className={`font-['Orbitron'] text-sm font-black ${
+              liveSynergyScore >= 80
+                ? 'text-[#00F0FF]'
+                : liveSynergyScore >= 60
+                ? 'text-[#FFE600]'
+                : 'text-[#FF2A85]'
             }`}
           >
-            {telemetry.laserDeactivated ? 'UNLOCKED' : 'LOCKED (HIT DUAL PADS)'}
-          </span>
-        </div>
-      </div>
-
-      {/* Top Right Couple Synergy Live Rating */}
-      <div className="pointer-events-none absolute top-4 right-4 z-20 flex items-center gap-3 rounded-2xl border border-white/10 bg-[#0B0F19]/85 backdrop-blur-md px-4 py-2.5 shadow-lg">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#00F0FF] to-[#FF2A85] p-0.5">
-          <div className="flex h-full w-full items-center justify-center rounded-[10px] bg-[#0B0F19] text-[#FF2A85]">
-            <Heart size={18} weight="fill" className="animate-pulse" />
-          </div>
-        </div>
-        <div className="text-right">
-          <span className="block text-[9px] font-['Orbitron'] font-bold text-gray-400">COUPLE SYNERGY</span>
-          <span className="block font-['Orbitron'] text-sm font-black text-transparent bg-clip-text bg-gradient-to-r from-[#00F0FF] to-[#FF2A85]">
             {liveSynergyScore}%
           </span>
         </div>
+
+        {/* Level Objective & Gate Status */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#0B0F19]/80 backdrop-blur-md px-3 py-2 shadow-lg">
+            <span className="text-[10px] text-gray-400 font-mono">CORE DISTANCE:</span>
+            <span className="font-['Orbitron'] text-xs font-bold text-[#FFE600]">
+              {telemetry.coreDistanceToWarp}px
+            </span>
+          </div>
+
+          <div
+            className={`flex items-center gap-2 rounded-xl border px-3 py-2 backdrop-blur-md shadow-lg ${
+              telemetry.laserDeactivated
+                ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+                : 'border-red-500/40 bg-red-500/10 text-red-400'
+            }`}
+          >
+            <span className="h-2 w-2 rounded-full bg-current" />
+            <span className="font-['Orbitron'] text-[10px] font-bold">
+              LASER GATE: {telemetry.laserDeactivated ? 'DEACTIVATED' : 'ACTIVE'}
+            </span>
+          </div>
+        </div>
       </div>
 
-      {/* Critical Overstretch Warning Overlay */}
+      {/* Critical Overstretch Danger HUD Alert */}
       {telemetry.status === 'CRITICAL' && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-6 z-20 flex justify-center">
-          <div className="flex items-center gap-2 rounded-xl border border-[#FF2A85]/60 bg-[#FF2A85]/20 px-4 py-2 font-['Orbitron'] text-xs font-black text-[#FF2A85] shadow-[0_0_25px_rgba(255,42,133,0.8)] animate-bounce">
-            ⚠️ TETHER STRAIN CRITICAL (&gt;380px) — SLINGSHOT OR REEL NOW!
-          </div>
+        <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full border border-red-500 bg-red-950/80 px-4 py-1.5 text-xs font-black text-red-200 tracking-wider font-['Orbitron'] animate-bounce shadow-[0_0_30px_rgba(255,0,51,0.6)]">
+          <span>⚠️ WARNING: TETHER OVERSTRETCHED — REEL OR CLOSE DISTANCE!</span>
         </div>
       )}
 
-      {/* Post-Game Couple Synergy Story Card Modal (PRD Section 8) */}
-      {completedResult && (
-        <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/85 backdrop-blur-xl p-4">
-          <div className="w-full max-w-sm rounded-3xl border-2 border-[#00F0FF]/60 bg-[#0B0F19] p-6 shadow-[0_0_50px_rgba(0,240,255,0.4)] text-center relative overflow-hidden animate-scale-up">
-            <div className="flex items-center justify-center mb-3">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#00F0FF] to-[#FF2A85] text-black shadow-lg">
-                <Trophy size={32} weight="fill" />
-              </div>
-            </div>
-
-            <span className="font-['Orbitron'] text-xs font-bold text-gray-400 tracking-widest">
-              MISSION ACCOMPLISHED!
-            </span>
-            <h3 className="font-['Orbitron'] text-3xl font-black text-white mt-1">
-              {completedResult.score}% {completedResult.title}
-            </h3>
-            <p className="mt-2 text-xs italic text-gray-300 font-['Space_Grotesk']">
-              "{completedResult.quote}"
-            </p>
-
-            {/* Couple Telemetry Breakdown */}
-            <div className="my-5 grid grid-cols-2 gap-3 text-left">
-              <div className="rounded-xl border border-white/10 bg-white/5 p-2.5">
-                <span className="block text-[10px] text-gray-400 font-mono">MISSION TIME</span>
-                <span className="font-['Orbitron'] text-xs font-bold text-white">
-                  ⏱ {completedResult.runTimeFormatted}
-                </span>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-white/5 p-2.5">
-                <span className="block text-[10px] text-gray-400 font-mono">ASTEROID HITS</span>
-                <span className="font-['Orbitron'] text-xs font-bold text-[#FF2A85]">
-                  ☄ {completedResult.collisionCount} Impacts
-                </span>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-white/5 p-2.5">
-                <span className="block text-[10px] text-gray-400 font-mono">TENSION CONSISTENCY</span>
-                <span className="font-['Orbitron'] text-xs font-bold text-[#00F0FF]">
-                  🔗 {completedResult.tensionConsistencyPercent}%
-                </span>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-white/5 p-2.5">
-                <span className="block text-[10px] text-gray-400 font-mono">SYNC DECISIONS</span>
-                <span className="font-['Orbitron'] text-xs font-bold text-[#FFE600]">
-                  ⚡ {completedResult.simultaneousDecisionPercent}%
-                </span>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                setCompletedResult(null)
-                window.location.reload()
-              }}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-[#00F0FF] to-[#FF2A85] text-black font-['Orbitron'] text-xs font-black tracking-wider shadow-lg hover:brightness-110 active:scale-95 transition flex items-center justify-center gap-2"
-            >
-              <ArrowsClockwise size={16} weight="bold" />
-              PLAY NEXT SECTOR
-            </button>
-          </div>
-        </div>
+      {/* Stylized 9:16 Vertical Card End Screen Modal (Victory or Tether Defeat) */}
+      {gameOverResult && (
+        <GameOverModal
+          outcome={gameOverResult.outcome}
+          result={gameOverResult.result}
+          ship1Path={ship1PathRef.current}
+          ship2Path={ship2PathRef.current}
+          onRematch={handleRematch}
+          onReturnToLobby={onReturnToLobby}
+        />
       )}
     </div>
   )

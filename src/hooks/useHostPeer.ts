@@ -52,6 +52,8 @@ export function useHostPeer(initialRoomId?: string): UseHostPeerReturn {
   const peerRef = useRef<Peer | null>(null)
   const connP1Ref = useRef<DataConnection | null>(null)
   const connP2Ref = useRef<DataConnection | null>(null)
+  const reconnectTimeoutRef = useRef<number | null>(null)
+  const isCleaningUpRef = useRef<boolean>(false)
 
   // Send feedback event to a specific player
   const sendFeedbackToPlayer = useCallback((slot: PlayerSlot, event: HostFeedbackEvent) => {
@@ -95,11 +97,31 @@ export function useHostPeer(initialRoomId?: string): UseHostPeerReturn {
   }, [])
 
   useEffect(() => {
-    let isMounted = true
+    isCleaningUpRef.current = false
     const hostPeerId = toHostPeerId(roomId)
 
     setConnectionState('CONNECTING')
     setErrorMessage(null)
+
+    // Schedule delayed reconnect for signaling drops
+    const scheduleReconnect = (delayMs = 1500) => {
+      if (isCleaningUpRef.current) return
+      if (reconnectTimeoutRef.current) {
+        window.clearTimeout(reconnectTimeoutRef.current)
+      }
+      reconnectTimeoutRef.current = window.setTimeout(() => {
+        if (isCleaningUpRef.current) return
+        const peer = peerRef.current
+        if (peer && !peer.destroyed && peer.disconnected) {
+          console.log('[HostPeer] Attempting to reconnect to PeerJS broker...')
+          try {
+            peer.reconnect()
+          } catch (err) {
+            console.warn('[HostPeer] Reconnect attempt failed:', err)
+          }
+        }
+      }, delayMs)
+    }
 
     const peer = new Peer(hostPeerId, {
       debug: 1,
@@ -114,7 +136,7 @@ export function useHostPeer(initialRoomId?: string): UseHostPeerReturn {
     peerRef.current = peer
 
     peer.on('open', (id) => {
-      if (!isMounted) return
+      if (isCleaningUpRef.current) return
       console.log(`[HostPeer] Room online with ID: ${fromHostPeerId(id)} (${id})`)
       setConnectionState('CONNECTED')
       setErrorMessage(null)
@@ -124,12 +146,26 @@ export function useHostPeer(initialRoomId?: string): UseHostPeerReturn {
       console.log(`[HostPeer] Incoming connection attempt from ${conn.peer}`)
 
       conn.on('open', () => {
-        if (!isMounted) return
+        if (isCleaningUpRef.current) return
 
         let assignedSlot: PlayerSlot | null = null
 
+        // Reconnect handling: if the incoming peer is already known in Slot 1
+        if (connP1Ref.current && connP1Ref.current.peer === conn.peer) {
+          assignedSlot = 1
+          connP1Ref.current = conn
+          setPlayer1Connected(true)
+          console.log(`[HostPeer] Player 1 (Cyan) reconnected from ${conn.peer}`)
+        }
+        // Reconnect handling: if the incoming peer is already known in Slot 2
+        else if (connP2Ref.current && connP2Ref.current.peer === conn.peer) {
+          assignedSlot = 2
+          connP2Ref.current = conn
+          setPlayer2Connected(true)
+          console.log(`[HostPeer] Player 2 (Pink) reconnected from ${conn.peer}`)
+        }
         // Slot 1 allocation
-        if (!connP1Ref.current || !connP1Ref.current.open) {
+        else if (!connP1Ref.current || !connP1Ref.current.open) {
           assignedSlot = 1
           connP1Ref.current = conn
           setPlayer1Connected(true)
@@ -142,7 +178,7 @@ export function useHostPeer(initialRoomId?: string): UseHostPeerReturn {
           setPlayer2Connected(true)
           console.log(`[HostPeer] Player 2 (Pink) assigned to ${conn.peer}`)
         }
-        // Room full rejection
+        // Room full rejection: 2 active players already occupying both slots
         else {
           console.warn(`[HostPeer] Room ${roomId} full. Rejecting incoming peer ${conn.peer}`)
           try {
@@ -153,20 +189,28 @@ export function useHostPeer(initialRoomId?: string): UseHostPeerReturn {
           } catch {
             // connection might already be closing
           }
-          setTimeout(() => conn.close(), 250)
+          window.setTimeout(() => {
+            try {
+              conn.close()
+            } catch {}
+          }, 300)
           return
         }
 
         // Notify client of their allocated player slot
-        conn.send({
-          e: 'SLOT_ASSIGNED',
-          slot: assignedSlot,
-          message: `Joined as Player ${assignedSlot}`
-        } as HostFeedbackEvent)
+        try {
+          conn.send({
+            e: 'SLOT_ASSIGNED',
+            slot: assignedSlot,
+            message: `Joined as Player ${assignedSlot}`
+          } as HostFeedbackEvent)
+        } catch (err) {
+          console.warn('[HostPeer] Failed to send SLOT_ASSIGNED:', err)
+        }
 
         // Incoming high-frequency input packets (@ 40Hz)
         conn.on('data', (raw: unknown) => {
-          if (!isMounted) return
+          if (isCleaningUpRef.current) return
           try {
             const data = (typeof raw === 'string' ? JSON.parse(raw) : raw) as ControllerInputPayload
             if (data && typeof data === 'object' && 'p' in data) {
@@ -185,7 +229,7 @@ export function useHostPeer(initialRoomId?: string): UseHostPeerReturn {
 
         // Handle disconnects
         conn.on('close', () => {
-          if (!isMounted) return
+          if (isCleaningUpRef.current) return
           if (connP1Ref.current === conn) {
             console.log('[HostPeer] Player 1 disconnected')
             connP1Ref.current = null
@@ -206,44 +250,64 @@ export function useHostPeer(initialRoomId?: string): UseHostPeerReturn {
     })
 
     peer.on('error', (err: { type?: string; message?: string }) => {
-      if (!isMounted) return
-      console.error('[HostPeer] Peer server error:', err)
+      if (isCleaningUpRef.current) return
+      const errType = err.type || ''
+      const errMsg = err.message || ''
 
-      if (err.type === 'unavailable-id') {
+      if (errType === 'unavailable-id') {
         // Automatically roll a new 4-char ID if collides
-        setErrorMessage(`Room ID ${roomId} is in use. Generating a new room...`)
+        console.warn(`[HostPeer] Room ID ${roomId} already in use. Generating a new room...`)
         setRoomId(generateRoomId())
-      } else {
-        setErrorMessage(err.message || 'WebRTC signaling error occurred.')
-        setConnectionState('DISCONNECTED')
+        return
       }
+
+      // Handle transient websocket disconnect gracefully
+      if (errType === 'network' || errMsg.includes('Lost connection') || errMsg.includes('socket')) {
+        console.warn('[HostPeer] Signaling websocket connection drop detected. Scheduling reconnect...')
+        scheduleReconnect(2000)
+        return
+      }
+
+      console.error('[HostPeer] Peer server error:', err)
+      setErrorMessage(errMsg || 'WebRTC signaling error occurred.')
     })
 
     peer.on('disconnected', () => {
-      if (!isMounted) return
-      console.warn('[HostPeer] Disconnected from signaling server. Attempting reconnect...')
-      setConnectionState('CONNECTING')
-      peer.reconnect()
+      if (isCleaningUpRef.current) return
+      console.warn('[HostPeer] Disconnected from signaling server. P2P DataChannels remain active. Scheduling reconnect...')
+      scheduleReconnect(1500)
     })
 
     peer.on('close', () => {
-      if (!isMounted) return
+      if (isCleaningUpRef.current) return
       setConnectionState('DISCONNECTED')
     })
 
-    // Graceful unmount cleanup
+    // Strict-mode safe unmount cleanup
     return () => {
-      isMounted = false
+      isCleaningUpRef.current = true
+      if (reconnectTimeoutRef.current) {
+        window.clearTimeout(reconnectTimeoutRef.current)
+        reconnectTimeoutRef.current = null
+      }
       if (connP1Ref.current) {
-        connP1Ref.current.close()
+        try {
+          connP1Ref.current.close()
+        } catch {}
         connP1Ref.current = null
       }
       if (connP2Ref.current) {
-        connP2Ref.current.close()
+        try {
+          connP2Ref.current.close()
+        } catch {}
         connP2Ref.current = null
       }
       if (peerRef.current) {
-        peerRef.current.destroy()
+        try {
+          if (!peerRef.current.destroyed) {
+            peerRef.current.destroy()
+          }
+        } catch {}
         peerRef.current = null
       }
     }

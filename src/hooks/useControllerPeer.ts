@@ -60,7 +60,7 @@ export function useControllerPeer(targetRoomId?: string): UseControllerPeerRetur
   const peerRef = useRef<Peer | null>(null)
   const connRef = useRef<DataConnection | null>(null)
   const intervalRef = useRef<number | null>(null)
-  const reconnectAttemptRef = useRef<number>(0)
+  const isCleaningUpRef = useRef<boolean>(false)
 
   // External updater for controller inputs
   const setInputState = useCallback((
@@ -93,16 +93,19 @@ export function useControllerPeer(targetRoomId?: string): UseControllerPeerRetur
       return
     }
 
+    isCleaningUpRef.current = false
     setConnectionState('CONNECTING')
     setErrorMessage(null)
 
     // Clean up any existing connection
     if (connRef.current) {
-      connRef.current.close()
+      try { connRef.current.close() } catch {}
       connRef.current = null
     }
     if (peerRef.current) {
-      peerRef.current.destroy()
+      try {
+        if (!peerRef.current.destroyed) peerRef.current.destroy()
+      } catch {}
       peerRef.current = null
     }
 
@@ -120,6 +123,7 @@ export function useControllerPeer(targetRoomId?: string): UseControllerPeerRetur
     peerRef.current = peer
 
     peer.on('open', (clientId) => {
+      if (isCleaningUpRef.current) return
       console.log(`[ControllerPeer] Client peer ready (${clientId}). Connecting to ${normalizedRoomId}...`)
       const hostPeerId = toHostPeerId(normalizedRoomId)
 
@@ -132,13 +136,14 @@ export function useControllerPeer(targetRoomId?: string): UseControllerPeerRetur
       connRef.current = conn
 
       conn.on('open', () => {
+        if (isCleaningUpRef.current) return
         console.log(`[ControllerPeer] Connected to Host: ${hostPeerId}`)
         setConnectionState('CONNECTED')
         setErrorMessage(null)
-        reconnectAttemptRef.current = 0
       })
 
       conn.on('data', (raw: unknown) => {
+        if (isCleaningUpRef.current) return
         try {
           const event = (typeof raw === 'string' ? JSON.parse(raw) : raw) as HostFeedbackEvent
           if (event && event.e) {
@@ -150,7 +155,7 @@ export function useControllerPeer(targetRoomId?: string): UseControllerPeerRetur
             } else if (event.e === 'ROOM_FULL') {
               setConnectionState('ROOM_FULL')
               setErrorMessage('Room is already full with 2 players.')
-              conn.close()
+              try { conn.close() } catch {}
               return
             }
 
@@ -163,19 +168,31 @@ export function useControllerPeer(targetRoomId?: string): UseControllerPeerRetur
       })
 
       conn.on('close', () => {
+        if (isCleaningUpRef.current) return
         console.warn('[ControllerPeer] Connection to host closed.')
         setConnectionState('DISCONNECTED')
       })
 
       conn.on('error', (err) => {
+        if (isCleaningUpRef.current) return
         console.error('[ControllerPeer] Connection error:', err)
         setErrorMessage('Failed to connect to Host.')
       })
     })
 
     peer.on('error', (err: { type?: string; message?: string }) => {
+      if (isCleaningUpRef.current) return
+      const errType = err.type || ''
+      const errMsg = err.message || ''
+
+      // Handle transient errors gracefully
+      if (errType === 'network' || errMsg.includes('Lost connection')) {
+        console.warn('[ControllerPeer] Transient signaling drop.')
+        return
+      }
+
       console.error('[ControllerPeer] Peer error:', err)
-      setErrorMessage(err.message || 'WebRTC error')
+      setErrorMessage(errMsg || 'WebRTC error')
       setConnectionState('DISCONNECTED')
     })
   }, [normalizedRoomId, triggerHaptic])
@@ -184,7 +201,7 @@ export function useControllerPeer(targetRoomId?: string): UseControllerPeerRetur
   useEffect(() => {
     if (connectionState !== 'CONNECTED' || !connRef.current) {
       if (intervalRef.current) {
-        clearInterval(intervalRef.current)
+        window.clearInterval(intervalRef.current)
         intervalRef.current = null
       }
       return
@@ -233,7 +250,7 @@ export function useControllerPeer(targetRoomId?: string): UseControllerPeerRetur
 
     return () => {
       if (intervalRef.current) {
-        clearInterval(intervalRef.current)
+        window.clearInterval(intervalRef.current)
         intervalRef.current = null
       }
     }
@@ -241,6 +258,8 @@ export function useControllerPeer(targetRoomId?: string): UseControllerPeerRetur
 
   // Auto-connect upon mount or targetRoomId change
   useEffect(() => {
+    isCleaningUpRef.current = false
+
     if (normalizedRoomId) {
       connectToHost()
     } else {
@@ -248,15 +267,19 @@ export function useControllerPeer(targetRoomId?: string): UseControllerPeerRetur
     }
 
     return () => {
+      isCleaningUpRef.current = true
       if (intervalRef.current) {
-        clearInterval(intervalRef.current)
+        window.clearInterval(intervalRef.current)
+        intervalRef.current = null
       }
       if (connRef.current) {
-        connRef.current.close()
+        try { connRef.current.close() } catch {}
         connRef.current = null
       }
       if (peerRef.current) {
-        peerRef.current.destroy()
+        try {
+          if (!peerRef.current.destroyed) peerRef.current.destroy()
+        } catch {}
         peerRef.current = null
       }
     }

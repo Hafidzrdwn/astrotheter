@@ -88,6 +88,41 @@ export interface TranslationDictionary {
   tugOfWarQuote: string
   chaosCoupleTitle: string
   chaosCoupleQuote: string
+
+  // Mission Tracker & Objectives
+  missionTrackerTitle: string
+  howToWinBtn: string
+  howToWinTitle: string
+  howToWinSubtitle: string
+  howToWinStep1Title: string
+  howToWinStep1Desc: string
+  howToWinStep2Title: string
+  howToWinStep2Desc: string
+  howToWinStep3Title: string
+  howToWinStep3Desc: string
+  howToWinClose: string
+
+  task1Title: string
+  task1StatusCaptured: string
+  task1StatusSearching: string
+  task2Title: string
+  task2StatusOpen: string
+  task2StatusLocked: string
+  task3Title: string
+  task3StatusDelivered: string
+  task3StatusDistance: string
+
+  // Tactical Radar / Mini-map
+  radarTitle: string
+  radarLegendCore: string
+  radarLegendWarp: string
+  radarLegendP1: string
+  radarLegendP2: string
+
+  // Dynamic In-Game Banners
+  bannerCoreTrapped: string
+  bannerLaserOpen: string
+  bannerNearWarp: string
 }
 
 export const translations: Record<Language, TranslationDictionary> = {
@@ -178,7 +213,42 @@ export const translations: Record<Language, TranslationDictionary> = {
     tugOfWarTitle: 'Tug-of-War Pair',
     tugOfWarQuote: 'A little chaotic and a few bumps along the way, but love pulled you both across the finish line.',
     chaosCoupleTitle: 'Chaos Couple',
-    chaosCoupleQuote: 'Wild drifting and full throttle chaos! Who even needs steering when you have each other?'
+    chaosCoupleQuote: 'Wild drifting and full throttle chaos! Who even needs steering when you have each other?',
+
+    // Mission Tracker & Objectives
+    missionTrackerTitle: 'MISSION OBJECTIVES',
+    howToWinBtn: 'HOW TO WIN?',
+    howToWinTitle: 'MISSION BRIEFING: HOW TO WIN',
+    howToWinSubtitle: 'Master the tether rope and complete all 3 orbital tasks with your co-pilot!',
+    howToWinStep1Title: '1. Trap Starlight Core',
+    howToWinStep1Desc: 'Fly on either side of the glowing golden Star Core. Your neon tether rope will physically wrap and push it!',
+    howToWinStep2Title: '2. Disable Laser Barrier',
+    howToWinStep2Desc: 'Hit both round pads (Pad 1 & Pad 2) simultaneously (within 1.2s) to open the red laser wall!',
+    howToWinStep3Title: '3. Escort into Warp Gate',
+    howToWinStep3Desc: 'Shepherd the Star Core safely into the swirling purple Warp Gate portal to achieve victory!',
+    howToWinClose: 'GOT IT, LET’S FLY!',
+
+    task1Title: 'Secure Starlight Core',
+    task1StatusCaptured: 'Core Caught in Tether! Escort forward',
+    task1StatusSearching: 'Trap the golden star between your ships',
+    task2Title: 'Deactivate Laser Gate',
+    task2StatusOpen: 'Laser barrier open! Safe to pass',
+    task2StatusLocked: 'Hit both pads together to disable barrier',
+    task3Title: 'Deliver to Warp Gate',
+    task3StatusDelivered: 'Core warping away! Mission complete!',
+    task3StatusDistance: 'm to Warp Gate',
+
+    // Tactical Radar / Mini-map
+    radarTitle: 'TACTICAL RADAR',
+    radarLegendCore: 'Core',
+    radarLegendWarp: 'Warp Gate',
+    radarLegendP1: 'Alpha (P1)',
+    radarLegendP2: 'Beta (P2)',
+
+    // Dynamic In-Game Banners
+    bannerCoreTrapped: '✨ CORE SECURED! Escort it towards the Warp Gate!',
+    bannerLaserOpen: '⚡ LASER BARRIER DISABLED! Path is clear!',
+    bannerNearWarp: '🌀 WARP GATE IN SIGHT! Push the Core into the portal!'
   },
 
   id: {
@@ -268,6 +338,41 @@ export const translations: Record<Language, TranslationDictionary> = {
     tugOfWarTitle: 'Tug-of-War Pair',
     tugOfWarQuote: 'Sempat saling tarik-tarikan dan sedikit heboh, tapi pada akhirnya kalian kompak sampai garis finish.',
     chaosCoupleTitle: 'Pasangan Bar-Bar (Chaos Couple)',
-    chaosCoupleQuote: 'Suka-suka nyetir dan penuh tabrakan seru! Gak apa-apa oleng dikit yang penting ketawa bareng.'
+    chaosCoupleQuote: 'Suka-suka nyetir dan penuh tabrakan seru! Gak apa-apa oleng dikit yang penting ketawa bareng.',
+
+    // Mission Tracker & Objectives
+    missionTrackerTitle: 'TARGET & TUGAS MISI',
+    howToWinBtn: 'CARA MENANG?',
+    howToWinTitle: 'PANDUAN MISI: CARA MENANG',
+    howToWinSubtitle: 'Kuasai tali tether dan selesaikan 3 langkah misi ini bersama pasanganmu!',
+    howToWinStep1Title: '1. Kurung Inti Bintang (Star Core)',
+    howToWinStep1Desc: 'Terbangkan pesawat kalian di sisi kiri dan kanan bintang emas. Tali energi kalian akan mengurung dan mendorongnya!',
+    howToWinStep2Title: '2. Matikan Pintu Laser Merah',
+    howToWinStep2Desc: 'Tabrak kedua tombol bulat (PAD 1 & PAD 2) secara bersamaan (toleransi 1.2 detik) untuk membuka jalan!',
+    howToWinStep3Title: '3. Masukkan ke Portal Pusaran Ungu',
+    howToWinStep3Desc: 'Giring Inti Bintang masuk ke dalam pusaran Warp Gate ungu untuk menyelesaikan misi dan menang!',
+    howToWinClose: 'SIAP, PAHAM! MELUNCUR 🚀',
+
+    task1Title: 'Amankan Inti Bintang',
+    task1StatusCaptured: 'Inti Berhasil Terjepit Tali! Bawa maju',
+    task1StatusSearching: 'Kepung bintang emas agar terjerat tali',
+    task2Title: 'Buka Gerbang Laser',
+    task2StatusOpen: 'Laser terbuka! Jalur aman dilewati',
+    task2StatusLocked: 'Tabrak 2 tombol sakelar bersamaan',
+    task3Title: 'Kawal ke Portal Warp Gate',
+    task3StatusDelivered: 'Inti berhasil masuk portal! Menang!',
+    task3StatusDistance: 'm lagi ke Portal',
+
+    // Tactical Radar / Mini-map
+    radarTitle: 'RADAR TAKTIS',
+    radarLegendCore: 'Inti Bintang',
+    radarLegendWarp: 'Portal Warp',
+    radarLegendP1: 'Alpha (P1)',
+    radarLegendP2: 'Beta (P2)',
+
+    // Dynamic In-Game Banners
+    bannerCoreTrapped: '✨ INTI TERTANGKAP! Kawal menuju Portal Warp Gate!',
+    bannerLaserOpen: '⚡ PINTU LASER TERBUKA! Lanjutkan dorong inti ke portal!',
+    bannerNearWarp: '🌀 PORTAL SUDAH DEKAT! Dorong inti masuk ke pusaran!'
   }
 }

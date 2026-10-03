@@ -7,6 +7,9 @@ import { playTone, playWarpLaunchSequence } from '../utils/audio'
 import { SoundFX } from '../utils/SoundFX'
 import { GameOverModal, type FlightPoint } from './GameOverModal'
 import { useLanguage } from '../context/LanguageContext'
+import { HowToWinModal } from './HowToWinModal'
+import { MissionTracker } from './MissionTracker'
+import { MiniMap, type RadarEntity } from './MiniMap'
 
 const { Engine, World, Bodies, Body, Constraint, Events } = Matter
 
@@ -83,6 +86,30 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
   // Rematch trigger counter (resets game world cleanly without reloading page or dropping WebRTC)
   const [rematchCount, setRematchCount] = useState(0)
+
+  // Mission objectives, guidance & radar state
+  const [isHowToWinOpen, setIsHowToWinOpen] = useState(false)
+  const [isCoreCaptured, setIsCoreCaptured] = useState(false)
+  const [isStageDoneState, setIsStageDoneState] = useState(false)
+  const [activeBanner, setActiveBanner] = useState<string | null>(null)
+  const [radarData, setRadarData] = useState<{
+    ship1: RadarEntity
+    ship2: RadarEntity
+    core: RadarEntity
+    warpGate: { x: number; y: number; radius: number }
+    laserGate: {
+      isDeactivated: boolean
+      x: number
+      y: number
+      switch1: RadarEntity
+      switch2: RadarEntity
+    }
+    asteroids: RadarEntity[]
+  } | null>(null)
+
+  const isCoreCapturedRef = useRef(false)
+  const hasAnnouncedCoreRef = useRef(false)
+  const hasAnnouncedWarpRef = useRef(false)
 
   // Recorded flight path trails for post-game route mapping
   const ship1PathRef = useRef<FlightPoint[]>([])
@@ -184,10 +211,13 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       onLaserDeactivated: () => {
         playTone(880, 'sine', 0.2, 0.2)
         setTelemetry((prev) => ({ ...prev, laserDeactivated: true }))
+        setActiveBanner(t('bannerLaserOpen'))
+        setTimeout(() => setActiveBanner(null), 3500)
       },
       onCoreDelivered: () => {
         if (isStageDone) return
         isStageDone = true
+        setIsStageDoneState(true)
         SoundFX.stopEngineHum()
         SoundFX.playSuccessArpeggio()
         playWarpLaunchSequence()
@@ -293,12 +323,26 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           // Push slightly away to maintain tension
           p2Thrust = 0.25
         } else {
-          // Orbitally align towards Starlight Core to shepherd it
-          const core = levelManager.objects.starlightCore
-          const angleToCore = Math.atan2(core.position.y - ship2.position.y, core.position.x - ship2.position.x)
-          const angleDiff = Math.sin(angleToCore - ship2.angle)
+          // Smart Co-Pilot target navigation: prioritize Core, then Warp Gate or Switch 2
+          let target = levelManager.objects.starlightCore.position
+          if (isCoreCapturedRef.current) {
+            // Once core is trapped in tether, guide directly towards Warp Gate!
+            target = levelManager.objects.warpGate
+          } else if (
+            !levelManager.objects.laserGate.isDeactivated &&
+            Math.hypot(
+              ship1.position.x - levelManager.objects.laserGate.switch1.position.x,
+              ship1.position.y - levelManager.objects.laserGate.switch1.position.y
+            ) < 220
+          ) {
+            // P1 is near Switch 1! Co-pilot flies towards Switch 2 for coordinated press!
+            target = levelManager.objects.laserGate.switch2.position
+          }
+
+          const angleToTarget = Math.atan2(target.y - ship2.position.y, target.x - ship2.position.x)
+          const angleDiff = Math.sin(angleToTarget - ship2.angle)
           p2Steer = Math.max(-0.8, Math.min(0.8, angleDiff * 1.5))
-          p2Thrust = p1Thrust > 0.1 ? 0.35 : 0.15
+          p2Thrust = p1Thrust > 0.1 ? 0.35 : 0.18
         }
       }
 
@@ -384,15 +428,59 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         tether.stiffness = 0.04
       }
 
-      // 6. Update Gravity Vortex Anomaly Field (PRD Section 5.3)
-      levelManager.updateGravityVortex([ship1, ship2, levelManager.objects.starlightCore])
+      // 6. Tether Line Segment Shepherding Physics & Trapping Check
+      const x1 = ship1.position.x
+      const y1 = ship1.position.y
+      const x2 = ship2.position.x
+      const y2 = ship2.position.y
+      const coreBody = levelManager.objects.starlightCore
+      const cx = coreBody.position.x
+      const cy = coreBody.position.y
 
-      // 7. Check if Starlight Core was delivered
+      const segDx = x2 - x1
+      const segDy = y2 - y1
+      const segLenSq = segDx * segDx + segDy * segDy
+      let tSeg = 0
+      if (segLenSq > 0.001) {
+        tSeg = Math.max(0, Math.min(1, ((cx - x1) * segDx + (cy - y1) * segDy) / segLenSq))
+      }
+      const closestX = x1 + tSeg * segDx
+      const closestY = y1 + tSeg * segDy
+      const distToTether = Math.hypot(cx - closestX, cy - closestY)
+
+      // Core is considered trapped if between 12% and 88% along tether length and close to line
+      const isCurrentlyTrapped = distToTether < 45 && tSeg > 0.12 && tSeg < 0.88
+      if (isCurrentlyTrapped !== isCoreCapturedRef.current) {
+        isCoreCapturedRef.current = isCurrentlyTrapped
+        setIsCoreCaptured(isCurrentlyTrapped)
+        if (isCurrentlyTrapped && !hasAnnouncedCoreRef.current) {
+          hasAnnouncedCoreRef.current = true
+          setActiveBanner(t('bannerCoreTrapped'))
+          setTimeout(() => setActiveBanner(null), 3500)
+        }
+      }
+
+      // Physical elastic push from the tether to the core
+      if (distToTether < 28 && distToTether > 0.5) {
+        const pushNx = (cx - closestX) / distToTether
+        const pushNy = (cy - closestY) / distToTether
+        const avgVx = (ship1.velocity.x + ship2.velocity.x) * 0.5
+        const avgVy = (ship1.velocity.y + ship2.velocity.y) * 0.5
+        Body.applyForce(coreBody, coreBody.position, {
+          x: pushNx * 0.0004 + avgVx * 0.0003,
+          y: pushNy * 0.0004 + avgVy * 0.0003
+        })
+      }
+
+      // 7. Update Gravity Vortex Anomaly Field (PRD Section 5.3)
+      levelManager.updateGravityVortex([ship1, ship2, coreBody])
+
+      // 8. Check if Starlight Core was delivered
       if (!isStageDone) {
         levelManager.checkCoreDelivery()
       }
 
-      // 8. Step Matter.js Physics Engine
+      // 9. Step Matter.js Physics Engine
       Engine.update(engine, 1000 / 60)
 
       // Calculate Tether Distance & Strain
@@ -460,6 +548,30 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           levelManager.objects.starlightCore.position.y - levelManager.objects.warpGate.y
         )
       )
+
+      if (coreDist < 250 && !hasAnnouncedWarpRef.current) {
+        hasAnnouncedWarpRef.current = true
+        setActiveBanner(t('bannerNearWarp'))
+        setTimeout(() => setActiveBanner(null), 3500)
+      }
+
+      // Update Tactical Radar telemetry every 6 frames
+      if (frameCount % 6 === 0) {
+        setRadarData({
+          ship1: { x: ship1.position.x, y: ship1.position.y, angle: ship1.angle },
+          ship2: { x: ship2.position.x, y: ship2.position.y, angle: ship2.angle },
+          core: { x: levelManager.objects.starlightCore.position.x, y: levelManager.objects.starlightCore.position.y },
+          warpGate: levelManager.objects.warpGate,
+          laserGate: {
+            isDeactivated: levelManager.objects.laserGate.isDeactivated,
+            x: levelManager.objects.laserGate.barrier.position.x,
+            y: levelManager.objects.laserGate.barrier.position.y,
+            switch1: { x: levelManager.objects.laserGate.switch1.position.x, y: levelManager.objects.laserGate.switch1.position.y },
+            switch2: { x: levelManager.objects.laserGate.switch2.position.x, y: levelManager.objects.laserGate.switch2.position.y }
+          },
+          asteroids: levelManager.objects.asteroids.map((a) => ({ x: a.position.x, y: a.position.y }))
+        })
+      }
 
       setTelemetry((prev) => ({
         ...prev,
@@ -661,6 +773,69 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       ctx.restore()
 
       ctx.restore() // End Camera translation
+
+      // 15. Render Off-Screen Directional Pointers (Screen Space)
+      const drawOffscreenPointer = (targetX: number, targetY: number, color: string, label: string) => {
+        const screenX = targetX - camX + width / 2
+        const screenY = targetY - camY + height / 2
+        const margin = 42
+
+        // Only draw if outside screen viewport
+        if (screenX < margin || screenX > width - margin || screenY < margin || screenY > height - margin) {
+          const angle = Math.atan2(targetY - camY, targetX - camX)
+          const dist = Math.round(Math.hypot(targetX - camX, targetY - camY))
+
+          const halfW = width / 2 - margin
+          const halfH = height / 2 - margin
+          let edgeX = width / 2 + Math.cos(angle) * halfW
+          let edgeY = height / 2 + Math.sin(angle) * halfH
+
+          edgeX = Math.max(margin, Math.min(width - margin, edgeX))
+          edgeY = Math.max(margin, Math.min(height - margin, edgeY))
+
+          ctx.save()
+          ctx.translate(edgeX, edgeY)
+
+          // Pulsing pointer chevron
+          ctx.rotate(angle)
+          ctx.fillStyle = color
+          ctx.shadowColor = color
+          ctx.shadowBlur = 14
+          ctx.beginPath()
+          ctx.moveTo(12, 0)
+          ctx.lineTo(-8, -8)
+          ctx.lineTo(-4, 0)
+          ctx.lineTo(-8, 8)
+          ctx.closePath()
+          ctx.fill()
+
+          // Distance label text
+          ctx.rotate(-angle)
+          ctx.font = 'bold 10px Orbitron'
+          ctx.textAlign = 'center'
+          ctx.fillStyle = '#FFFFFF'
+          ctx.shadowColor = '#000000'
+          ctx.shadowBlur = 4
+          ctx.fillText(`${label} ${dist}m`, 0, angle > 0 ? 18 : -14)
+          ctx.restore()
+        }
+      }
+
+      drawOffscreenPointer(
+        levelManager.objects.starlightCore.position.x,
+        levelManager.objects.starlightCore.position.y,
+        '#FFE600',
+        '⭐ CORE'
+      )
+      drawOffscreenPointer(levelManager.objects.warpGate.x, levelManager.objects.warpGate.y, '#A855F7', '🌀 WARP')
+      if (!levelManager.objects.laserGate.isDeactivated) {
+        drawOffscreenPointer(
+          levelManager.objects.laserGate.barrier.position.x,
+          levelManager.objects.laserGate.barrier.position.y,
+          '#FF2A85',
+          '⚡ GATE'
+        )
+      }
     }
 
     animId = requestAnimationFrame(renderLoop)
@@ -677,6 +852,11 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
   const handleRematch = () => {
     setGameOverResult(null)
+    setIsStageDoneState(false)
+    setIsCoreCaptured(false)
+    isCoreCapturedRef.current = false
+    hasAnnouncedCoreRef.current = false
+    hasAnnouncedWarpRef.current = false
     setRematchCount((prev) => prev + 1)
   }
 
@@ -755,6 +935,37 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Dynamic In-Game Event Banner Toast */}
+      {activeBanner && (
+        <div className="pointer-events-none absolute top-16 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 rounded-2xl border border-white/20 bg-[#0B0F19]/95 px-5 py-2.5 text-xs font-bold text-white shadow-[0_0_25px_rgba(0,240,255,0.4)] animate-bounce font-['Orbitron']">
+          <span>{activeBanner}</span>
+        </div>
+      )}
+
+      {/* Progressive Mission Tracker & Tasks Checklist */}
+      <MissionTracker
+        isCoreCaptured={isCoreCaptured}
+        isLaserDeactivated={telemetry.laserDeactivated}
+        isStageDone={isStageDoneState}
+        coreDistanceToWarp={telemetry.coreDistanceToWarp}
+        onOpenHowToWin={() => setIsHowToWinOpen(true)}
+      />
+
+      {/* Tactical Radar / Mini-map */}
+      {radarData && (
+        <MiniMap
+          ship1={radarData.ship1}
+          ship2={radarData.ship2}
+          core={radarData.core}
+          warpGate={radarData.warpGate}
+          laserGate={radarData.laserGate}
+          asteroids={radarData.asteroids}
+        />
+      )}
+
+      {/* How to Win Visual Briefing Modal */}
+      <HowToWinModal isOpen={isHowToWinOpen} onClose={() => setIsHowToWinOpen(false)} />
 
       {/* Critical Overstretch Danger HUD Alert */}
       {telemetry.status === 'CRITICAL' && (

@@ -221,7 +221,7 @@ export class LevelManager {
 
     if (gate.switch1HitTime && gate.switch2HitTime) {
       const diff = Math.abs(gate.switch1HitTime - gate.switch2HitTime)
-      if (diff <= 500) {
+      if (diff <= 1200) {
         // Successful coordination: disable laser barrier!
         gate.isDeactivated = true
         gate.barrier.isSensor = true // Allows pass-through
@@ -353,18 +353,19 @@ export class LevelManager {
 
     // Switch 1 Pad
     const s1 = laserGate.switch1
+    const s1Active = laserGate.switch1HitTime && Date.now() - laserGate.switch1HitTime < 1200
     ctx.save()
     ctx.translate(s1.position.x, s1.position.y)
-    ctx.fillStyle = laserGate.switch1HitTime && (Date.now() - laserGate.switch1HitTime < 500) ? '#00F0FF' : '#1A202C'
+    ctx.fillStyle = s1Active ? '#00F0FF' : '#1A202C'
     ctx.strokeStyle = '#00F0FF'
-    ctx.lineWidth = 2.5
+    ctx.lineWidth = s1Active ? 3.5 : 2.5
     ctx.shadowColor = '#00F0FF'
-    ctx.shadowBlur = 12
+    ctx.shadowBlur = s1Active ? 24 : 12
     ctx.beginPath()
     ctx.arc(0, 0, 18, 0, Math.PI * 2)
     ctx.fill()
     ctx.stroke()
-    ctx.fillStyle = '#00F0FF'
+    ctx.fillStyle = s1Active ? '#000000' : '#00F0FF'
     ctx.font = '9px Orbitron'
     ctx.textAlign = 'center'
     ctx.fillText('PAD 1', 0, 3)
@@ -372,18 +373,19 @@ export class LevelManager {
 
     // Switch 2 Pad
     const s2 = laserGate.switch2
+    const s2Active = laserGate.switch2HitTime && Date.now() - laserGate.switch2HitTime < 1200
     ctx.save()
     ctx.translate(s2.position.x, s2.position.y)
-    ctx.fillStyle = laserGate.switch2HitTime && (Date.now() - laserGate.switch2HitTime < 500) ? '#FF2A85' : '#1A202C'
+    ctx.fillStyle = s2Active ? '#FF2A85' : '#1A202C'
     ctx.strokeStyle = '#FF2A85'
-    ctx.lineWidth = 2.5
+    ctx.lineWidth = s2Active ? 3.5 : 2.5
     ctx.shadowColor = '#FF2A85'
-    ctx.shadowBlur = 12
+    ctx.shadowBlur = s2Active ? 24 : 12
     ctx.beginPath()
     ctx.arc(0, 0, 18, 0, Math.PI * 2)
     ctx.fill()
     ctx.stroke()
-    ctx.fillStyle = '#FF2A85'
+    ctx.fillStyle = s2Active ? '#000000' : '#FF2A85'
     ctx.font = '9px Orbitron'
     ctx.textAlign = 'center'
     ctx.fillText('PAD 2', 0, 3)

@@ -24,6 +24,7 @@ export const HostView: React.FC = () => {
     player2Connected,
     latestInputs,
     broadcastFeedback,
+    sendFeedbackToPlayer,
     getLatestInputs,
     regenerateRoom
   } = useHostPeer()
@@ -117,12 +118,26 @@ export const HostView: React.FC = () => {
         {/* Interactive Matter.js 2D Canvas */}
         <GameCanvas
           getLatestInputs={getLatestInputs}
+          onCollisionFeedback={(player) => {
+            sendFeedbackToPlayer(player, {
+              e: 'COLLISION',
+              intensity: 'HEAVY'
+            })
+          }}
           onOverstretch={() =>
             broadcastFeedback({
               e: 'OVERSTRETCH',
               intensity: 'HEAVY'
             })
           }
+          onStageCompleted={(result) => {
+            broadcastFeedback({
+              e: 'SUCCESS',
+              intensity: 'LIGHT',
+              score: result.score,
+              message: `${result.title} — ${result.score}% Synergy!`
+            })
+          }}
         />
 
         {/* Arena Bottom Action Controls */}

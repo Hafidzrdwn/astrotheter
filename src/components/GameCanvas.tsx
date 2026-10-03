@@ -1,8 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react'
 import Matter from 'matter-js'
 import { type ControllerInputPayload } from '../types/network'
+import { LevelManager } from '../game/LevelManager'
+import { useCoupleSynergy, type CoupleSynergyResult } from '../hooks/useCoupleSynergy'
+import { playTone, playWarpLaunchSequence } from '../utils/audio'
+import { Trophy, ArrowsClockwise, Sparkle, Heart } from '@phosphor-icons/react'
 
-const { Engine, World, Bodies, Body, Constraint } = Matter
+const { Engine, World, Bodies, Body, Constraint, Events } = Matter
 
 interface Particle {
   x: number
@@ -31,12 +35,16 @@ export interface GameCanvasProps {
   }
   onTetherSnap?: () => void
   onOverstretch?: () => void
+  onCollisionFeedback?: (player: 1 | 2) => void
+  onStageCompleted?: (result: CoupleSynergyResult) => void
 }
 
 export const GameCanvas: React.FC<GameCanvasProps> = ({
   getLatestInputs,
   onTetherSnap,
-  onOverstretch
+  onOverstretch,
+  onCollisionFeedback,
+  onStageCompleted
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -46,8 +54,22 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     distance: 160,
     strainPercent: 0,
     fps: 60,
-    status: 'OPTIMAL' as 'OPTIMAL' | 'STRETCHING' | 'CRITICAL'
+    status: 'OPTIMAL' as 'OPTIMAL' | 'STRETCHING' | 'CRITICAL',
+    laserDeactivated: false,
+    coreDistanceToWarp: 600
   })
+
+  // Couple synergy calculation hook (PRD Section 8)
+  const {
+    currentScore: liveSynergyScore,
+    recordTick,
+    recordCollision,
+    evaluateFinalSynergy,
+    resetMetrics
+  } = useCoupleSynergy()
+
+  // Victory result state
+  const [completedResult, setCompletedResult] = useState<CoupleSynergyResult | null>(null)
 
   // Keyboard fallback state for desktop testing
   const keysRef = useRef<{ [key: string]: boolean }>({})
@@ -74,6 +96,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
     const ctx = canvas.getContext('2d')
     if (!ctx) return
+
+    resetMetrics()
 
     // Setup Canvas dimensions
     let width = (canvas.width = container.clientWidth || 900)
@@ -125,6 +149,34 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     })
 
     World.add(world, [ship1, ship2, tether])
+
+    // Level Obstacles & Hazards Manager (PRD Section 5 & 6)
+    let isStageDone = false
+    const levelManager = new LevelManager(world, width / 2, height / 2, {
+      onShipCollision: (player, _force) => {
+        recordCollision()
+        playTone(180, 'sawtooth', 0.15, 0.25)
+        onCollisionFeedback?.(player)
+      },
+      onLaserDeactivated: () => {
+        playTone(880, 'sine', 0.2, 0.2)
+        setTelemetry((prev) => ({ ...prev, laserDeactivated: true }))
+      },
+      onCoreDelivered: () => {
+        if (isStageDone) return
+        isStageDone = true
+        playWarpLaunchSequence()
+        const result = evaluateFinalSynergy()
+        setCompletedResult(result)
+        onStageCompleted?.(result)
+      }
+    })
+
+    // Matter.js collision listener
+    const collisionListener = (event: Matter.IEventCollision<Matter.Engine>) => {
+      levelManager.handleCollisionStart(event, ship1, ship2)
+    }
+    Events.on(engine, 'collisionStart', collisionListener)
 
     // Visual Particle & Spark Systems
     const particles: Particle[] = []
@@ -257,7 +309,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         }
       }
 
-      // 5. Reel Constraint Behavior (Decrease length by 50% & increase stiffness)
+      // 5. Reel Constraint Behavior (Decrease length by 50% & increase stiffness per PRD Section 5)
       const isReelActive = p1Reel || p2Reel
       if (isReelActive) {
         tether.length = 80 // 50% of 160px
@@ -267,7 +319,15 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         tether.stiffness = 0.04
       }
 
-      // 6. Step Matter.js Physics Engine
+      // 6. Update Gravity Vortex Anomaly Field (PRD Section 5.3)
+      levelManager.updateGravityVortex([ship1, ship2, levelManager.objects.starlightCore])
+
+      // 7. Check if Starlight Core was delivered
+      if (!isStageDone) {
+        levelManager.checkCoreDelivery()
+      }
+
+      // 8. Step Matter.js Physics Engine
       Engine.update(engine, 1000 / 60)
 
       // Calculate Tether Distance & Strain
@@ -275,6 +335,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       const dy = ship2.position.y - ship1.position.y
       const distance = Math.hypot(dx, dy)
       const strainPercent = Math.min(100, Math.round(((distance - 160) / (440 - 160)) * 100))
+
+      // Record couple synergy metric telemetry
+      recordTick(distance, p1Thrust > 0.1 || p1Steer !== 0, p2Thrust > 0.1 || p2Steer !== 0)
 
       let status: 'OPTIMAL' | 'STRETCHING' | 'CRITICAL' = 'OPTIMAL'
       if (distance > 380) {
@@ -302,20 +365,29 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         criticalWarningTriggered = false
       }
 
+      // Calculate core distance to warp gate
+      const coreDist = Math.round(
+        Math.hypot(
+          levelManager.objects.starlightCore.position.x - levelManager.objects.warpGate.x,
+          levelManager.objects.starlightCore.position.y - levelManager.objects.warpGate.y
+        )
+      )
+
       setTelemetry((prev) => ({
         ...prev,
         distance: Math.round(distance),
         strainPercent: Math.max(0, strainPercent),
-        status
+        status,
+        coreDistanceToWarp: coreDist
       }))
 
-      // 7. Smooth Lerp Camera Centering
+      // 9. Smooth Lerp Camera Centering
       const midX = (ship1.position.x + ship2.position.x) / 2
       const midY = (ship1.position.y + ship2.position.y) / 2
       camX += (midX - camX) * 0.08
       camY += (midY - camY) * 0.08
 
-      // 8. Render Frame
+      // 10. Render Frame
       ctx.clearRect(0, 0, width, height)
 
       ctx.save()
@@ -349,6 +421,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         ctx.arc(star.x, star.y, star.s, 0, Math.PI * 2)
         ctx.fill()
       })
+
+      // Render Level Objects: Starlight Core, Warp Gate, Asteroids, Laser Barrier, Vortex
+      levelManager.render(ctx, time)
 
       // Render Thruster Particles
       for (let i = particles.length - 1; i >= 0; i--) {
@@ -392,7 +467,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         ctx.shadowBlur = 0
       }
 
-      // 9. Render Tether Line
+      // 11. Render Tether Line
       ctx.save()
       let tetherColor = '#00F0FF'
       let tetherWidth = 3
@@ -434,7 +509,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       ctx.fill()
       ctx.restore()
 
-      // 10. Render Ship 1: P1 Alpha Pod (Cyan)
+      // 12. Render Ship 1: P1 Alpha Pod (Cyan)
       ctx.save()
       ctx.translate(ship1.position.x, ship1.position.y)
       ctx.rotate(ship1.angle)
@@ -462,7 +537,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       ctx.fill()
       ctx.restore()
 
-      // 11. Render Ship 2: P2 Beta Pod (Pink)
+      // 13. Render Ship 2: P2 Beta Pod (Pink)
       ctx.save()
       ctx.translate(ship2.position.x, ship2.position.y)
       ctx.rotate(ship2.angle)
@@ -499,21 +574,23 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     return () => {
       cancelAnimationFrame(animId)
       window.removeEventListener('resize', handleResize)
+      Events.off(engine, 'collisionStart', collisionListener)
+      levelManager.cleanup()
       World.clear(world, false)
       Engine.clear(engine)
     }
-  }, [getLatestInputs, onOverstretch, onTetherSnap])
+  }, [getLatestInputs, onOverstretch, onTetherSnap, onCollisionFeedback, onStageCompleted, recordCollision, recordTick, resetMetrics, evaluateFinalSynergy])
 
   return (
-    <div ref={containerRef} className="relative w-full h-[520px] rounded-2xl overflow-hidden bg-[#070A12] border border-white/10 shadow-2xl">
+    <div ref={containerRef} className="relative w-full h-[540px] rounded-3xl overflow-hidden bg-[#070A12] border border-white/10 shadow-2xl">
       {/* 2D Canvas */}
       <canvas ref={canvasRef} className="w-full h-full block" />
 
       {/* Top Left Live Telemetry HUD */}
-      <div className="pointer-events-none absolute top-4 left-4 z-20 flex flex-col gap-1 rounded-xl border border-white/10 bg-[#0B0F19]/80 backdrop-blur-md px-3.5 py-2 text-xs font-mono">
+      <div className="pointer-events-none absolute top-4 left-4 z-20 flex flex-col gap-1.5 rounded-2xl border border-white/10 bg-[#0B0F19]/85 backdrop-blur-md px-4 py-2.5 text-xs font-mono shadow-lg">
         <div className="flex items-center gap-2">
           <span
-            className={`h-2 w-2 rounded-full ${
+            className={`h-2.5 w-2.5 rounded-full ${
               telemetry.status === 'OPTIMAL'
                 ? 'bg-[#00F0FF] animate-pulse'
                 : telemetry.status === 'STRETCHING'
@@ -525,7 +602,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             TETHER: {telemetry.distance}px
           </span>
           <span
-            className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+            className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
               telemetry.status === 'OPTIMAL'
                 ? 'bg-[#00F0FF]/20 text-[#00F0FF]'
                 : telemetry.status === 'STRETCHING'
@@ -542,13 +619,42 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         </div>
       </div>
 
-      {/* Top Right Desktop Controls Guide */}
-      <div className="pointer-events-none absolute top-4 right-4 z-20 hidden md:flex flex-col gap-1 rounded-xl border border-white/10 bg-[#0B0F19]/80 backdrop-blur-md px-3 py-2 text-[10px] font-mono text-gray-400">
-        <span className="font-['Orbitron'] font-bold text-gray-300">KEYBOARD BACKUP:</span>
-        <div className="flex items-center gap-3">
-          <span className="text-[#00F0FF]">P1: WASD / Space</span>
-          <span>•</span>
-          <span className="text-[#FF2A85]">P2: Arrows / Enter</span>
+      {/* Top Center Mission Objective HUD */}
+      <div className="pointer-events-none absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-4 rounded-2xl border border-white/10 bg-[#0B0F19]/90 backdrop-blur-md px-5 py-2 shadow-xl">
+        <div className="flex items-center gap-2">
+          <Sparkle size={18} className="text-[#FFE600] animate-spin" />
+          <div className="text-left">
+            <span className="block text-[9px] font-['Orbitron'] font-bold text-gray-400">OBJECTIVE</span>
+            <span className="block font-['Rajdhani'] text-xs font-bold text-white">
+              SHEPHERD CORE TO WARP GATE ({telemetry.coreDistanceToWarp}px)
+            </span>
+          </div>
+        </div>
+        <div className="h-6 w-[1px] bg-white/20" />
+        <div className="text-left">
+          <span className="block text-[9px] font-['Orbitron'] font-bold text-gray-400">LASER GATE</span>
+          <span
+            className={`block font-['Orbitron'] text-xs font-bold ${
+              telemetry.laserDeactivated ? 'text-emerald-400' : 'text-[#FF2A85]'
+            }`}
+          >
+            {telemetry.laserDeactivated ? 'UNLOCKED' : 'LOCKED (HIT DUAL PADS)'}
+          </span>
+        </div>
+      </div>
+
+      {/* Top Right Couple Synergy Live Rating */}
+      <div className="pointer-events-none absolute top-4 right-4 z-20 flex items-center gap-3 rounded-2xl border border-white/10 bg-[#0B0F19]/85 backdrop-blur-md px-4 py-2.5 shadow-lg">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#00F0FF] to-[#FF2A85] p-0.5">
+          <div className="flex h-full w-full items-center justify-center rounded-[10px] bg-[#0B0F19] text-[#FF2A85]">
+            <Heart size={18} weight="fill" className="animate-pulse" />
+          </div>
+        </div>
+        <div className="text-right">
+          <span className="block text-[9px] font-['Orbitron'] font-bold text-gray-400">COUPLE SYNERGY</span>
+          <span className="block font-['Orbitron'] text-sm font-black text-transparent bg-clip-text bg-gradient-to-r from-[#00F0FF] to-[#FF2A85]">
+            {liveSynergyScore}%
+          </span>
         </div>
       </div>
 
@@ -557,6 +663,69 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         <div className="pointer-events-none absolute inset-x-0 bottom-6 z-20 flex justify-center">
           <div className="flex items-center gap-2 rounded-xl border border-[#FF2A85]/60 bg-[#FF2A85]/20 px-4 py-2 font-['Orbitron'] text-xs font-black text-[#FF2A85] shadow-[0_0_25px_rgba(255,42,133,0.8)] animate-bounce">
             ⚠️ TETHER STRAIN CRITICAL (&gt;380px) — SLINGSHOT OR REEL NOW!
+          </div>
+        </div>
+      )}
+
+      {/* Post-Game Couple Synergy Story Card Modal (PRD Section 8) */}
+      {completedResult && (
+        <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/85 backdrop-blur-xl p-4">
+          <div className="w-full max-w-sm rounded-3xl border-2 border-[#00F0FF]/60 bg-[#0B0F19] p-6 shadow-[0_0_50px_rgba(0,240,255,0.4)] text-center relative overflow-hidden animate-scale-up">
+            <div className="flex items-center justify-center mb-3">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#00F0FF] to-[#FF2A85] text-black shadow-lg">
+                <Trophy size={32} weight="fill" />
+              </div>
+            </div>
+
+            <span className="font-['Orbitron'] text-xs font-bold text-gray-400 tracking-widest">
+              MISSION ACCOMPLISHED!
+            </span>
+            <h3 className="font-['Orbitron'] text-3xl font-black text-white mt-1">
+              {completedResult.score}% {completedResult.title}
+            </h3>
+            <p className="mt-2 text-xs italic text-gray-300 font-['Space_Grotesk']">
+              "{completedResult.quote}"
+            </p>
+
+            {/* Couple Telemetry Breakdown */}
+            <div className="my-5 grid grid-cols-2 gap-3 text-left">
+              <div className="rounded-xl border border-white/10 bg-white/5 p-2.5">
+                <span className="block text-[10px] text-gray-400 font-mono">MISSION TIME</span>
+                <span className="font-['Orbitron'] text-xs font-bold text-white">
+                  ⏱ {completedResult.runTimeFormatted}
+                </span>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-2.5">
+                <span className="block text-[10px] text-gray-400 font-mono">ASTEROID HITS</span>
+                <span className="font-['Orbitron'] text-xs font-bold text-[#FF2A85]">
+                  ☄ {completedResult.collisionCount} Impacts
+                </span>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-2.5">
+                <span className="block text-[10px] text-gray-400 font-mono">TENSION CONSISTENCY</span>
+                <span className="font-['Orbitron'] text-xs font-bold text-[#00F0FF]">
+                  🔗 {completedResult.tensionConsistencyPercent}%
+                </span>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-2.5">
+                <span className="block text-[10px] text-gray-400 font-mono">SYNC DECISIONS</span>
+                <span className="font-['Orbitron'] text-xs font-bold text-[#FFE600]">
+                  ⚡ {completedResult.simultaneousDecisionPercent}%
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setCompletedResult(null)
+                window.location.reload()
+              }}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-[#00F0FF] to-[#FF2A85] text-black font-['Orbitron'] text-xs font-black tracking-wider shadow-lg hover:brightness-110 active:scale-95 transition flex items-center justify-center gap-2"
+            >
+              <ArrowsClockwise size={16} weight="bold" />
+              PLAY NEXT SECTOR
+            </button>
           </div>
         </div>
       )}
